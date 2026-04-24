@@ -1,4 +1,5 @@
 import os
+import json
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -28,6 +29,10 @@ supabase = create_client(
 class GreetingRequest(BaseModel):
     username: str
 
+class MCQRequest(BaseModel):
+    material_id: int
+    num_questions: int = 5
+    section: str = None
 
 @app.get("/")
 def root():
@@ -88,4 +93,85 @@ def extract_text(material_id: int):
         "title": material["title"],
         "text": text,
         "cached": False
+    }
+
+@app.post("/generate-mcq")
+def generate_mcq(request: MCQRequest):
+    # Get the material
+    result = supabase.table("materials").select("*").eq("id", request.material_id).execute()
+    
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Material not found")
+    
+    material = result.data[0]
+    
+    # Get the extracted text (extract if not cached)
+    text = material.get("extracted_text")
+    if not text:
+        text = extract_text_from_url(material["file_url"])
+        supabase.table("materials").update(
+            {"extracted_text": text}
+        ).eq("id", request.material_id).execute()
+    
+    # Build the prompt
+    section_instruction = ""
+    if request.section:
+        section_instruction = f"Focus ONLY on the section about: {request.section}."
+    
+    prompt = f"""You are a university exam question generator. Based on the following course material, generate exactly {request.num_questions} multiple choice questions.
+
+{section_instruction}
+
+Rules:
+- Each question must have exactly 4 options: A, B, C, D
+- Exactly one option must be correct
+- Questions should test understanding, not just memorization
+- Include questions on formulas, concepts, and applications
+- Make wrong options plausible, not obviously wrong
+
+Respond ONLY in this exact JSON format, no other text:
+{{
+  "questions": [
+    {{
+      "question": "What is the purpose of a venturimeter?",
+      "options": {{
+        "A": "To measure temperature",
+        "B": "To measure flow rate",
+        "C": "To measure pressure only",
+        "D": "To measure viscosity"
+      }},
+      "correct_answer": "B",
+      "explanation": "A venturimeter measures the flow rate of fluid through a pipe using Bernoulli's principle."
+    }}
+  ]
+}}
+
+Course material:
+{text}"""
+
+    # Call Claude
+    message = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=4000,
+        messages=[
+            {"role": "user", "content": prompt}
+        ]
+    )
+    
+    # Parse the response
+    import json
+    response_text = message.content[0].text
+    
+    try:
+        mcq_data = json.loads(response_text)
+    except json.JSONDecodeError:
+        # Sometimes Claude wraps JSON in markdown code blocks
+        clean = response_text.replace("```json", "").replace("```", "").strip()
+        mcq_data = json.loads(clean)
+    
+    return {
+        "material_id": request.material_id,
+        "title": material["title"],
+        "section": request.section,
+        "quiz": mcq_data
     }
