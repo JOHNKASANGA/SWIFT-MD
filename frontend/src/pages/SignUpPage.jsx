@@ -1,3 +1,4 @@
+import { supabase } from "../lib/supabase";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -16,7 +17,7 @@ export default function SignUpPage() {
     setError("");
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     if (!form.email || !form.password || !form.confirmPassword) {
       setError("All fields are required.");
@@ -30,8 +31,20 @@ export default function SignUpPage() {
       setError("Password must be at least 6 characters.");
       return;
     }
-    // Supabase wiring goes here later
-    console.log("Submit:", form);
+
+    const { error } = await supabase.auth.signUp({
+      email: form.email,
+      password: form.password,
+    });
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    setError("");
+    setForm({ email: "", password: "", confirmPassword: "" });
+    alert("Check your email to confirm your account before signing in.");
   }
 
   return (
