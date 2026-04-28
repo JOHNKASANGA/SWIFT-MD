@@ -1,3 +1,4 @@
+import { supabase } from "../lib/supabase";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -15,14 +16,24 @@ export default function SignInPage() {
     setError("");
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     if (!form.email || !form.password) {
       setError("All fields are required.");
       return;
     }
-    // Supabase wiring goes here later
-    console.log("Submit:", form);
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: form.email,
+      password: form.password,
+    });
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    navigate("/home");
   }
 
   return (
