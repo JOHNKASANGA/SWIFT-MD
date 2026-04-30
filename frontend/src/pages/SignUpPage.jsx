@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom"
 export default function SignUpPage() {
   const navigate = useNavigate()
   const [form, setForm] = useState({
+    name: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -20,7 +21,7 @@ export default function SignUpPage() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!form.email || !form.password || !form.confirmPassword) {
+    if (!form.name || !form.email || !form.password || !form.confirmPassword) {
       setError("All fields are required.")
       return
     }
@@ -37,8 +38,12 @@ export default function SignUpPage() {
       email: form.email,
       password: form.password,
       options: {
-        emailRedirectTo: "https://swift-md.vercel.app/home"
+        emailRedirectTo: "https://swift-md.vercel.app/home",
+        data: {
+          full_name: form.name
+        }
       }
+
     })
 
     if (error) {
@@ -97,6 +102,19 @@ export default function SignUpPage() {
 
         {/* Form */}
         <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+              Full Name
+            </label>
+            <input
+              type="text"
+              name="name"
+              value={form.name}
+              onChange={handleChange}
+              placeholder="David Gilbert"
+              className="bg-gray-800 border border-gray-700 text-white placeholder-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors"
+            />
+          </div>
 
           {/* Email */}
           <div className="flex flex-col gap-1">
