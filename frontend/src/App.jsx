@@ -5,6 +5,7 @@ import SignInPage from "./pages/SignInPage";
 import HomePage from "./pages/HomePage"
 import LevelPage from "./pages/LevelPage"
 import CoursePage from "./pages/CoursePage"
+import TestPage from "./pages/TestPage"
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
         <Route path="/home" element={<HomePage />} />
         <Route path="/level/:level" element={<LevelPage />} />
         <Route path="/course/:id" element={<CoursePage />} />
+        <Route path="/test/:materialId" element={<TestPage />} />
       </Routes>
     </BrowserRouter>
   );
