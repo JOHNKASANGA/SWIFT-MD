@@ -43,7 +43,6 @@ class TheoryRequest(BaseModel):
 def root():
     return {"message": "Swift backend is alive"}
 
-
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -123,7 +122,8 @@ def generate_mcq(request: MCQRequest):
     if request.section:
         section_instruction = f"Focus ONLY on the section about: {request.section}."
     
-    prompt = f"""You are a university exam question generator. Based on the following course material, generate exactly {request.num_questions} multiple choice questions, if {request.num_questions} is not enough to cover the topic extensively create 50 mcqs.
+    prompt = f"""You are a university exam question generator. Based on the following course material, generate exactly {request.num_questions} multiple choice questions, if {request.num_questions} is not enough to cover the topic extensively create 50 mcqs. if {request.num_questions} is not given automatically make 50 questions 
+    
 
 {section_instruction}
 
