@@ -141,7 +141,7 @@ function MCQQuiz({
   cachedQuestions,
   onCache,
 }) {
-  const [questions, setQuestions] = useState([]);
+  const [questions, setQuestions] = useState(cachedQuestions || []);
   const [current, setCurrent] = useState(0);
   const [selected, setSelected] = useState(null);
   const [answers, setAnswers] = useState([]);
@@ -150,10 +150,7 @@ function MCQQuiz({
   const [done, setDone] = useState(false);
 
   useState(() => {
-    if (cachedQuestions) {
-      setQuestions(cachedQuestions);
-      return;
-    }
+    if (cachedQuestions) return;
     async function fetchQuestions() {
       try {
         const res = await fetch(
@@ -298,7 +295,7 @@ function GermanQuiz({
   cachedQuestions,
   onCache,
 }) {
-  const [questions, setQuestions] = useState([]);
+  const [questions, setQuestions] = useState(cachedQuestions || []);
   const [current, setCurrent] = useState(0);
   const [input, setInput] = useState("");
   const [checked, setChecked] = useState(false);
@@ -309,10 +306,7 @@ function GermanQuiz({
   const [done, setDone] = useState(false);
 
   useState(() => {
-    if (cachedQuestions) {
-      setQuestions(cachedQuestions);
-      return;
-    }
+    if (cachedQuestions) return;
     async function fetchQuestions() {
       try {
         const res = await fetch(
