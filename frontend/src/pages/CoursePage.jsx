@@ -137,6 +137,7 @@ export default function CoursePage() {
                   href={material.file_url}
                   target="_blank"
                   rel="noopener noreferrer"
+                  download
                   className="text-xs font-bold text-gray-400 hover:text-white transition-colors"
                 >
                   Download ↗
