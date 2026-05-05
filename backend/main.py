@@ -274,7 +274,7 @@ def grade_theory(request: TheoryRequest):
     if request.question:
         question_context = f"The question asked was: {request.question}"
     
-    prompt = f"""You are a strict but fair university lecturer grading a student's theory answer. Grade the answer based ONLY on the course material provided — do not use outside knowledge.
+    prompt = f"""role:"Strict University Lecturer","task":"Grade student theory answer","constraints":"Use ONLY provided material; no external knowledge","question_logic":"Closely related to material but requires application","output":"JSON format question and grading rubric"
 
 {question_context}
 
