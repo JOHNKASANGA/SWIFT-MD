@@ -98,7 +98,10 @@ export default function SignInPage() {
 
           {/* Forgot password */}
           <div className="text-right">
-            <span className="text-xs text-gray-500 hover:text-white cursor-pointer transition-colors font-bold">
+            <span
+              onClick={() => navigate("/forgot-password")}
+              className="text-xs text-gray-500 hover:text-white cursor-pointer transition-colors font-bold"
+            >
               Forgot password?
             </span>
           </div>
