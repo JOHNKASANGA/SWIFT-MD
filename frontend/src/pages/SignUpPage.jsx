@@ -1,37 +1,37 @@
-import { supabase } from "../lib/supabase"
-import { motion } from "framer-motion"
-import { useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { supabase } from "../lib/supabase";
+import { motion } from "framer-motion";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function SignUpPage() {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     name: "",
     email: "",
     password: "",
     confirmPassword: "",
-  })
-  const [error, setError] = useState("")
-  const [submitted, setSubmitted] = useState(false)
+  });
+  const [error, setError] = useState("");
+  const [submitted, setSubmitted] = useState(false);
 
   function handleChange(e) {
-    setForm({ ...form, [e.target.name]: e.target.value })
-    setError("")
+    setForm({ ...form, [e.target.name]: e.target.value });
+    setError("");
   }
 
   async function handleSubmit(e) {
-    e.preventDefault()
+    e.preventDefault();
     if (!form.name || !form.email || !form.password || !form.confirmPassword) {
-      setError("All fields are required.")
-      return
+      setError("All fields are required.");
+      return;
     }
     if (form.password !== form.confirmPassword) {
-      setError("Passwords do not match.")
-      return
+      setError("Passwords do not match.");
+      return;
     }
     if (form.password.length < 6) {
-      setError("Password must be at least 6 characters.")
-      return
+      setError("Password must be at least 6 characters.");
+      return;
     }
 
     const { error } = await supabase.auth.signUp({
@@ -40,42 +40,46 @@ export default function SignUpPage() {
       options: {
         emailRedirectTo: "https://swift-md.vercel.app/home",
         data: {
-          full_name: form.name
-        }
-      }
-
-    })
+          full_name: form.name,
+        },
+      },
+    });
 
     if (error) {
-      setError(error.message)
-      return
+      setError(error.message);
+      return;
     }
 
-    setSubmitted(true)
+    setSubmitted(true);
   }
 
   if (submitted) {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-4 text-center">
         <div className="text-4xl mb-4">📬</div>
-        <h2 className="text-2xl font-black text-white mb-2">Check your email</h2>
+        <h2 className="text-2xl font-black text-white mb-2">
+          Check your email
+        </h2>
         <p className="text-gray-400 text-sm max-w-xs">
           We sent a confirmation link to{" "}
-          <span className="text-white font-bold">{form.email}</span>. Click it to activate your account.
+          <span className="text-white font-bold">{form.email}</span>. Click it
+          to activate your account.
+        </p>
+        <p className="text-gray-600 text-xs max-w-xs mt-2">
+          Don't see it? Check your spam folder and report not spam as well.
         </p>
         <button
-          onClick={() => window.location.href = "mailto:"}
+          onClick={() => (window.location.href = "mailto:")}
           className="mt-6 border border-gray-700 text-white text-sm font-bold py-2 px-6 rounded-xl hover:bg-gray-800 transition-colors"
         >
           Open email app
         </button>
       </div>
-    )
+    );
   }
 
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-4">
-
       {/* Back button */}
       <motion.button
         initial={{ opacity: 0 }}
@@ -97,7 +101,9 @@ export default function SignUpPage() {
         {/* Header */}
         <div className="mb-8">
           <h2 className="text-2xl font-black text-white">Create account</h2>
-          <p className="text-gray-500 text-sm mt-1">Join Swift. Start studying better.</p>
+          <p className="text-gray-500 text-sm mt-1">
+            Join Swift. Start studying better.
+          </p>
         </div>
 
         {/* Form */}
@@ -162,9 +168,7 @@ export default function SignUpPage() {
           </div>
 
           {/* Error */}
-          {error && (
-            <p className="text-red-400 text-xs font-bold">{error}</p>
-          )}
+          {error && <p className="text-red-400 text-xs font-bold">{error}</p>}
 
           {/* Submit */}
           <button
@@ -173,7 +177,6 @@ export default function SignUpPage() {
           >
             Create Account
           </button>
-
         </div>
 
         {/* Footer link */}
@@ -186,8 +189,7 @@ export default function SignUpPage() {
             Sign in
           </span>
         </p>
-
       </motion.div>
     </div>
-  )
+  );
 }

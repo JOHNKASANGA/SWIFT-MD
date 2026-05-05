@@ -40,6 +40,10 @@ export default function ForgotPasswordPage() {
           <span className="text-white font-bold">{email}</span>. Click it to
           reset your password.
         </p>
+        <p className="text-gray-600 text-xs max-w-xs mt-2">
+          Don't see it? Check your spam folder and report not spam as well.
+        </p>
+
         <button
           onClick={() => navigate("/signin")}
           className="mt-6 border border-gray-700 text-white text-sm font-bold py-2 px-6 rounded-xl hover:bg-gray-800 transition-colors"
