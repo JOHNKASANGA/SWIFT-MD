@@ -2,6 +2,7 @@ import { supabase } from "../lib/supabase";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import AnimatedBackground from "../components/AnimatedBackground";
 
 export default function SignInPage() {
   const navigate = useNavigate();
@@ -38,6 +39,7 @@ export default function SignInPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-4">
+      <AnimatedBackground />
       {/* Back button */}
       <motion.button
         initial={{ opacity: 0 }}
@@ -54,7 +56,7 @@ export default function SignInPage() {
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-sm bg-gray-900 border border-gray-800 rounded-2xl p-8"
+        className="w-full max-w-sm bg-gray-900 border border-gray-800 rounded-2xl p-8 relative overflow-hidden"
       >
         {/* Header */}
         <div className="mb-8">

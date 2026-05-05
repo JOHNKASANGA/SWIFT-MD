@@ -2,6 +2,7 @@ import { supabase } from "../lib/supabase";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import AnimatedBackground from "../components/AnimatedBackground";
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
@@ -58,6 +59,7 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-4">
+      <AnimatedBackground />
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "../lib/supabase";
+import AnimatedBackground from "../components/AnimatedBackground";
 
 export default function LevelPage() {
   const { level } = useParams();
@@ -43,6 +44,7 @@ export default function LevelPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 px-6 py-10 max-w-2xl mx-auto">
+      <AnimatedBackground />
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
+import AnimatedBackground from "../components/AnimatedBackground";
 
 export default function TestPage() {
   const { materialId } = useParams();
