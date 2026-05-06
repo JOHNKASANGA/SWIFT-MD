@@ -10,6 +10,7 @@ export default function TestPage() {
   const [numQuestions, setNumQuestions] = useState(10);
   const [cachedMCQ, setCachedMCQ] = useState(null);
   const [cachedGerman, setCachedGerman] = useState(null);
+  const [section, setSection] = useState("");
 
   if (!mode) {
     return (
@@ -66,6 +67,23 @@ export default function TestPage() {
             ))}
           </div>
         </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="mb-8"
+        >
+          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">
+            Focus on a topic (optional)
+          </p>
+          <input
+            type="text"
+            value={section}
+            onChange={(e) => setSection(e.target.value)}
+            placeholder="e.g. Laplace transforms, Newton's laws..."
+            className="w-full bg-gray-900 border border-gray-800 text-white placeholder-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gray-600 transition-colors"
+          />
+        </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -117,6 +135,7 @@ export default function TestPage() {
         numQuestions={numQuestions}
         cachedQuestions={cachedMCQ}
         onCache={setCachedMCQ}
+        section={section}
       />
     );
   if (mode === "german")
@@ -127,6 +146,7 @@ export default function TestPage() {
         numQuestions={numQuestions}
         cachedQuestions={cachedGerman}
         onCache={setCachedGerman}
+        section={section}
       />
     );
   if (mode === "theory")
@@ -141,6 +161,7 @@ function MCQQuiz({
   numQuestions,
   cachedQuestions,
   onCache,
+  section,
 }) {
   const [questions, setQuestions] = useState(cachedQuestions || []);
   const [current, setCurrent] = useState(0);
@@ -162,6 +183,7 @@ function MCQQuiz({
             body: JSON.stringify({
               material_id: parseInt(materialId),
               num_questions: numQuestions,
+              section: section || null,
             }),
           },
         );
@@ -295,6 +317,7 @@ function GermanQuiz({
   numQuestions,
   cachedQuestions,
   onCache,
+  section,
 }) {
   const [questions, setQuestions] = useState(cachedQuestions || []);
   const [current, setCurrent] = useState(0);
@@ -318,6 +341,7 @@ function GermanQuiz({
             body: JSON.stringify({
               material_id: parseInt(materialId),
               num_questions: numQuestions,
+              section: section || null,
             }),
           },
         );
