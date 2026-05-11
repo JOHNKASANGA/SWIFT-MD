@@ -132,16 +132,12 @@ export default function CoursePage() {
                   </p>
                 </div>
 
-                {/* FIXED THE TAG BELOW */}
-                <a
-                  href={material.file_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  download
+                <button
+                  onClick={() => navigate(`/view/${material.id}`)}
                   className="text-xs font-bold text-gray-400 hover:text-white transition-colors"
                 >
-                  Download ↗
-                </a>
+                  View ↗
+                </button>
               </div>
             ))}
           </div>

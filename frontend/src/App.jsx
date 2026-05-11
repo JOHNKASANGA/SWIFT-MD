@@ -8,6 +8,7 @@ import CoursePage from "./pages/CoursePage";
 import TestPage from "./pages/TestPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import ViewerPage from "./pages/ViewerPage";
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/test/:materialId" element={<TestPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/view/:materialId" element={<ViewerPage />} />
       </Routes>
     </BrowserRouter>
   );
