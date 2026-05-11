@@ -3,7 +3,7 @@ import json
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from anthropic import Anthropic
+from anthropic import Anthropic # Change to Groq
 from dotenv import load_dotenv
 from supabase import create_client
 from pdf_utils import extract_text_from_url
@@ -19,7 +19,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY")) #Also create client for groq
 
 supabase = create_client(
     os.getenv("SUPABASE_URL"),
@@ -36,7 +36,7 @@ class MCQRequest(BaseModel):
 
 class TheoryRequest(BaseModel):
     material_id: int
-    question: str = None
+    question: str 
     answer: str
 
 @app.get("/")
@@ -157,7 +157,7 @@ Course material:
     
     message = client.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=4000,
+        max_tokens=8000,
         messages=[
             {"role": "user", "content": prompt}
         ]
@@ -232,7 +232,7 @@ Course material:
 
     message = client.messages.create(
         model="claude-sonnet-4-20250514",
-        max_tokens=4000,
+        max_tokens=8000,
         messages=[
             {"role": "user", "content": prompt}
         ]
@@ -252,6 +252,79 @@ Course material:
         "section": request.section,
         "quiz": quiz_data
     }
+@app.post("/generate-theory-question")
+def generate_theory_question(request: MCQRequest):
+    # Get the material
+    result = supabase.table("materials").select("*").eq("id", request.material_id).execute()
+    
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Material not found")
+    
+    material = result.data[0]
+    
+    # Get the extracted text
+    text = material.get("extracted_text")
+    if not text:
+        text = extract_text_from_url(material["file_url"])
+        supabase.table("materials").update(
+            {"extracted_text": text}
+        ).eq("id", request.material_id).execute()
+    
+    section_instruction = ""
+    if request.section:
+        section_instruction = f"Focus ONLY on the section about: {request.section}."
+    
+    prompt = f"""You are a university lecturer creating theory exam questions. Based on the following course material, generate exactly {request.num_questions} theory questions that require written explanations.
+
+{section_instruction}
+
+Rules:
+- Mix question types: explain, derive, compare, describe, calculate
+- Questions should require 3-10 sentence answers, not one-word responses
+- Each question should test deep understanding, not surface-level recall
+- Include questions that require applying formulas to scenarios
+- Order from easier to harder
+
+Respond ONLY in this exact JSON format, no other text:
+{{
+  "questions": [
+    {{
+      "id": 1,
+      "question": "Explain the working principle of a venturimeter and state the assumptions made in deriving its discharge equation.",
+      "type": "explain",
+      "difficulty": "medium",
+      "key_points": ["Bernoulli's principle", "continuity equation", "horizontal pipe assumption", "ideal fluid assumption"],
+      "max_marks": 10
+    }}
+  ]
+}}
+
+Course material:
+{text}"""
+
+    message = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=8000,
+        messages=[
+            {"role": "user", "content": prompt}
+        ]
+    )
+    
+    response_text = message.content[0].text
+    
+    try:
+        questions_data = json.loads(response_text)
+    except json.JSONDecodeError:
+        clean = response_text.replace("```json", "").replace("```", "").strip()
+        questions_data = json.loads(clean)
+    
+    return {
+        "material_id": request.material_id,
+        "title": material["title"],
+        "section": request.section,
+        "theory": questions_data
+    }
+
 @app.post("/grade-theory")
 def grade_theory(request: TheoryRequest):
     
@@ -307,7 +380,7 @@ Course material:
 
     message = client.messages.create(
         model="claude-sonnet-4-20250514",
-        max_tokens=2000,
+        max_tokens=8000,
         messages=[
             {"role": "user", "content": prompt}
         ]
