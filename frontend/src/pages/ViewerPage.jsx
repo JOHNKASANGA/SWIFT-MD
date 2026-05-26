@@ -15,7 +15,6 @@ export default function ViewerPage() {
         .select("*")
         .eq("id", materialId)
         .single();
-
       if (!error) setMaterial(data);
       setLoading(false);
     }
@@ -23,18 +22,19 @@ export default function ViewerPage() {
   }, [materialId]);
 
   function getViewerUrl(fileUrl) {
-    // Google Drive — convert to preview URL
     const driveMatch = fileUrl.match(/id=([a-zA-Z0-9_-]+)/);
     if (driveMatch) {
       return `https://drive.google.com/file/d/${driveMatch[1]}/preview`;
     }
-    // Slides/Docs — convert to preview
     const docsMatch = fileUrl.match(/\/d\/([a-zA-Z0-9_-]+)\//);
     if (docsMatch) {
       return `https://docs.google.com/presentation/d/${docsMatch[1]}/embed`;
     }
-    // MediaFire and others — use Google Docs viewer as fallback
-    return `https://docs.google.com/viewer?url=${encodeURIComponent(fileUrl)}&embedded=true`;
+    return null;
+  }
+
+  function isMediaFire(fileUrl) {
+    return fileUrl?.includes("mediafire.com");
   }
 
   if (loading) {
@@ -46,6 +46,9 @@ export default function ViewerPage() {
       </div>
     );
   }
+
+  const viewerUrl = getViewerUrl(material?.file_url);
+  const mediafire = isMediaFire(material?.file_url);
 
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col">
@@ -63,13 +66,45 @@ export default function ViewerPage() {
       </div>
 
       {/* Viewer */}
-      <iframe
-        src={getViewerUrl(material?.file_url)}
-        className="flex-1 w-full"
-        style={{ minHeight: "calc(100vh - 60px)" }}
-        allow="autoplay"
-        title={material?.title}
-      />
+      {mediafire ? (
+        <div className="flex-1 flex flex-col items-center justify-center gap-6 px-6">
+          <p className="text-gray-400 text-sm text-center">
+            This file is hosted on MediaFire and cannot be previewed directly.
+          </p>
+
+          <a
+            href={material?.file_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-white text-black font-black text-sm px-6 py-3 rounded-xl hover:bg-gray-200 transition-colors"
+          >
+            Open File →
+          </a>
+        </div>
+      ) : viewerUrl ? (
+        <iframe
+          src={viewerUrl}
+          className="flex-1 w-full"
+          style={{ minHeight: "calc(100vh - 60px)" }}
+          allow="autoplay"
+          title={material?.title}
+        />
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center gap-6 px-6">
+          <p className="text-gray-400 text-sm text-center">
+            This file cannot be previewed directly.
+          </p>
+
+          <a
+            href={material?.file_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-white text-black font-black text-sm px-6 py-3 rounded-xl hover:bg-gray-200 transition-colors"
+          >
+            Open File →
+          </a>
+        </div>
+      )}
     </div>
   );
 }
