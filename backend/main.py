@@ -1,9 +1,10 @@
 import os
 import json
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from anthropic import Anthropic # Change to Groq
+from anthropic import Anthropic
 from dotenv import load_dotenv
 from supabase import create_client
 from pdf_utils import extract_text_from_url
@@ -19,12 +20,34 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY")) #Also create client for groq
+
+anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL = "llama-3.3-70b-versatile"
 
 supabase = create_client(
     os.getenv("SUPABASE_URL"),
     os.getenv("SUPABASE_SERVICE_KEY")
 )
+
+def groq_generate(prompt: str, max_tokens: int = 8000) -> str:
+    response = httpx.post(
+        GROQ_URL,
+        headers={
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "model": GROQ_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": max_tokens,
+            "temperature": 0.7
+        },
+        timeout=60.0
+    )
+    response.raise_for_status()
+    return response.json()["choices"][0]["message"]["content"]
 
 class GreetingRequest(BaseModel):
     username: str
@@ -38,6 +61,18 @@ class TheoryRequest(BaseModel):
     material_id: int
     question: str 
     answer: str
+
+class QuestionBankRequest(BaseModel):
+    course_code: str
+    question_type: str  # "mcq" or "german"
+    num_questions: int = 50
+
+class CourseQuizRequest(BaseModel):
+    course_code: str
+    num_questions: int = 10
+    section: str = None
+    question_type: str = "mcq"
+
 
 @app.get("/")
 def root():
@@ -99,6 +134,204 @@ def extract_text(material_id: int):
         "cached": False
     }
 
+@app.post("/admin/generate-bank")
+def generate_question_bank(request: QuestionBankRequest):
+    # Fetch all materials for this course
+    result = supabase.table("materials").select("*").eq("course_code", request.course_code).execute()
+    
+    if not result.data:
+        raise HTTPException(status_code=404, detail="No materials found for this course")
+    
+    all_text = ""
+    material_ids = []
+    
+    for material in result.data:
+        text = material.get("extracted_text")
+        if not text:
+            try:
+                text = extract_text_from_url(material["file_url"])
+                supabase.table("materials").update(
+                    {"extracted_text": text}
+                ).eq("id", material["id"]).execute()
+            except Exception:
+                continue
+        if text:
+            all_text += f"\n\n{text}"
+            material_ids.append(material["id"])
+    
+    if not all_text.strip():
+        raise HTTPException(status_code=400, detail="Could not extract text from any materials")
+    
+    # Trim text to avoid token limits
+    all_text = all_text[:12000]
+    
+    if request.question_type == "mcq":
+        prompt = f"""You are a university exam question generator. Based on the following course material, generate exactly {request.num_questions} multiple choice questions.
+
+Rules:
+- Each question must have exactly 4 options: A, B, C, D
+- Exactly one option must be correct
+- Questions should test understanding, not just memorization
+- Include questions on formulas, concepts, and applications
+- Make wrong options plausible
+
+Respond ONLY in this exact JSON format, no other text:
+{{
+  "questions": [
+    {{
+      "question": "Sample question?",
+      "options": {{"A": "Option A", "B": "Option B", "C": "Option C", "D": "Option D"}},
+      "correct_answer": "B",
+      "explanation": "Explanation here."
+    }}
+  ]
+}}
+
+Course material:
+{all_text}"""
+
+    else:  # german/fill-in-blank
+        prompt = f"""You are a university exam question generator. Based on the following course material, generate exactly {request.num_questions} fill-in-the-blank questions.
+
+Rules:
+- Each question should have one blank represented by _____
+- The answer should be a key term or concept
+- Questions should test understanding of core concepts
+
+Respond ONLY in this exact JSON format, no other text:
+{{
+  "questions": [
+    {{
+      "question": "The process by which plants convert sunlight into energy is called _____.",
+      "answer": "photosynthesis",
+      "explanation": "Photosynthesis is the process plants use to convert light energy into chemical energy."
+    }}
+  ]
+}}
+
+Course material:
+{all_text}"""
+
+    response_text = groq_generate(prompt)
+    
+    try:
+        questions_data = json.loads(response_text)
+    except json.JSONDecodeError:
+        clean = response_text.replace("```json", "").replace("```", "").strip()
+        questions_data = json.loads(clean)
+    
+    # Store in question_banks table
+    existing = supabase.table("question_banks").select("*").eq("course_code", request.course_code).eq("question_type", request.question_type).execute()
+    
+    if existing.data:
+        supabase.table("question_banks").update({
+            "questions": questions_data["questions"],
+            "material_ids": material_ids,
+            "generated_at": "now()"
+        }).eq("course_code", request.course_code).eq("question_type", request.question_type).execute()
+    else:
+        supabase.table("question_banks").insert({
+            "course_code": request.course_code,
+            "question_type": request.question_type,
+            "questions": questions_data["questions"],
+            "material_ids": material_ids
+        }).execute()
+    
+    return {
+        "course_code": request.course_code,
+        "question_type": request.question_type,
+        "total_questions": len(questions_data["questions"]),
+        "material_ids": material_ids
+    }
+
+
+@app.post("/quiz")
+def get_quiz(request: CourseQuizRequest):
+    # Try to serve from question bank first
+    result = supabase.table("question_banks").select("*").eq("course_code", request.course_code).eq("question_type", request.question_type).execute()
+    
+    if result.data:
+        import random
+        all_questions = result.data[0]["questions"]
+        
+        if request.section:
+            filtered = [q for q in all_questions if request.section.lower() in q.get("question", "").lower()]
+            questions = filtered if filtered else all_questions
+        else:
+            questions = all_questions
+        
+        selected = random.sample(questions, min(request.num_questions, len(questions)))
+        
+        return {
+            "course_code": request.course_code,
+            "question_type": request.question_type,
+            "questions": selected,
+            "from_bank": True
+        }
+    
+    # No bank exists — generate live with Groq
+    materials = supabase.table("materials").select("*").eq("course_code", request.course_code).execute()
+    
+    if not materials.data:
+        raise HTTPException(status_code=404, detail="No materials found for this course")
+    
+    all_text = ""
+    for material in materials.data[:3]:  # limit to 3 materials for live generation
+        text = material.get("extracted_text")
+        if not text:
+            try:
+                text = extract_text_from_url(material["file_url"])
+            except Exception:
+                continue
+        if text:
+            all_text += f"\n\n{text}"
+    
+    all_text = all_text[:8000]
+    
+    if not all_text.strip():
+        raise HTTPException(status_code=400, detail="Could not extract text from materials")
+    
+    if request.question_type == "mcq":
+        prompt = f"""Generate exactly {request.num_questions} MCQ questions from this material. Respond ONLY in JSON:
+{{
+  "questions": [
+    {{
+      "question": "Question?",
+      "options": {{"A": "A", "B": "B", "C": "C", "D": "D"}},
+      "correct_answer": "A",
+      "explanation": "Explanation."
+    }}
+  ]
+}}
+Material: {all_text}"""
+    else:
+        prompt = f"""Generate exactly {request.num_questions} fill-in-the-blank questions from this material. Respond ONLY in JSON:
+{{
+  "questions": [
+    {{
+      "question": "The _____ is used to measure flow rate.",
+      "answer": "venturimeter",
+      "explanation": "Explanation."
+    }}
+  ]
+}}
+Material: {all_text}"""
+    
+    response_text = groq_generate(prompt)
+    
+    try:
+        questions_data = json.loads(response_text)
+    except json.JSONDecodeError:
+        clean = response_text.replace("```json", "").replace("```", "").strip()
+        questions_data = json.loads(clean)
+    
+    return {
+        "course_code": request.course_code,
+        "question_type": request.question_type,
+        "questions": questions_data["questions"][:request.num_questions],
+        "from_bank": False
+    }
+
 @app.post("/generate-mcq")
 def generate_mcq(request: MCQRequest):
    
@@ -154,25 +387,17 @@ Respond ONLY in this exact JSON format, no other text:
 Course material:
 {text}"""
 
-    
-    message = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=8000,
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    )
+    response_text = groq_generate(prompt)
     
     
     import json
     response_text = message.content[0].text
     
     try:
-        mcq_data = json.loads(response_text)
+    mcq_data = json.loads(response_text)
     except json.JSONDecodeError:
-        
-        clean = response_text.replace("```json", "").replace("```", "").strip()
-        mcq_data = json.loads(clean)
+    clean = response_text.replace("```json", "").replace("```", "").strip()
+    mcq_data = json.loads(clean)
     
     return {
         "material_id": request.material_id,
