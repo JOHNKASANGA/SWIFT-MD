@@ -151,7 +151,7 @@ export default function CoursePage() {
         transition={{ delay: 0.3 }}
       >
         <button
-          onClick={() => navigate(`/test/${materials[0]?.id}`)}
+          onClick={() => navigate(`/test/${course?.code}`)}
           disabled={materials.length === 0}
           className="w-full bg-white text-gray-950 font-black py-4 rounded-2xl hover:bg-gray-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         >

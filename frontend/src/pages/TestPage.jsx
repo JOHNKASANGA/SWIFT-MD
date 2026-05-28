@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import AnimatedBackground from "../components/AnimatedBackground";
 
 export default function TestPage() {
-  const { materialId } = useParams();
+  const { courseCode } = useParams();
   const navigate = useNavigate();
   const [mode, setMode] = useState(null);
   const [numQuestions, setNumQuestions] = useState(10);
@@ -130,7 +130,7 @@ export default function TestPage() {
   if (mode === "mcq")
     return (
       <MCQQuiz
-        materialId={materialId}
+        courseCode={courseCode}
         onBack={() => setMode(null)}
         numQuestions={numQuestions}
         cachedQuestions={cachedMCQ}
@@ -141,7 +141,7 @@ export default function TestPage() {
   if (mode === "german")
     return (
       <GermanQuiz
-        materialId={materialId}
+        courseCode={courseCode}
         onBack={() => setMode(null)}
         numQuestions={numQuestions}
         cachedQuestions={cachedGerman}
@@ -150,13 +150,13 @@ export default function TestPage() {
       />
     );
   if (mode === "theory")
-    return <TheoryQuiz materialId={materialId} onBack={() => setMode(null)} />;
+    return <TheoryQuiz courseCode={courseCode} onBack={() => setMode(null)} />;
 }
 
 // ─── MCQ Quiz ────────────────────────────────────────────────────────────────
 
 function MCQQuiz({
-  materialId,
+  courseCode,
   onBack,
   numQuestions,
   cachedQuestions,
@@ -175,21 +175,19 @@ function MCQQuiz({
     if (cachedQuestions) return;
     async function fetchQuestions() {
       try {
-        const res = await fetch(
-          `${import.meta.env.VITE_BACKEND_URL}/generate-mcq`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              material_id: parseInt(materialId),
-              num_questions: numQuestions,
-              section: section || null,
-            }),
-          },
-        );
+        const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/quiz`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            course_code: courseCode,
+            num_questions: numQuestions,
+            section: section || null,
+            question_type: "mcq",
+          }),
+        });
         const data = await res.json();
-        setQuestions(data.quiz.questions);
-        onCache(data.quiz.questions);
+        setQuestions(data.questions);
+        onCache(data.questions);
       } catch {
         setError("Failed to generate questions. Try again.");
       } finally {
@@ -312,7 +310,7 @@ function MCQQuiz({
 // ─── German Quiz ─────────────────────────────────────────────────────────────
 
 function GermanQuiz({
-  materialId,
+  courseCode,
   onBack,
   numQuestions,
   cachedQuestions,
@@ -339,7 +337,7 @@ function GermanQuiz({
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              material_id: parseInt(materialId),
+              material_id: parseInt(courseCode),
               num_questions: numQuestions,
               section: section || null,
             }),
@@ -475,7 +473,7 @@ function GermanQuiz({
 
 // ─── Theory Quiz ─────────────────────────────────────────────────────────────
 
-function TheoryQuiz({ materialId, onBack }) {
+function TheoryQuiz({ courseCode, onBack }) {
   const [answer, setAnswer] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -490,7 +488,7 @@ function TheoryQuiz({ materialId, onBack }) {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ material_id: parseInt(materialId), answer }),
+          body: JSON.stringify({ material_id: parseInt(courseCode), answer }),
         },
       );
       const data = await res.json();

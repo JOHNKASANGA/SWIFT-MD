@@ -20,7 +20,7 @@ export default function App() {
         <Route path="/home" element={<HomePage />} />
         <Route path="/level/:level" element={<LevelPage />} />
         <Route path="/course/:id" element={<CoursePage />} />
-        <Route path="/test/:materialId" element={<TestPage />} />
+        <Route path="/test/:courseCode" element={<TestPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/view/:materialId" element={<ViewerPage />} />
