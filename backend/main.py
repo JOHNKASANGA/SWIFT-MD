@@ -386,18 +386,14 @@ Respond ONLY in this exact JSON format, no other text:
 
 Course material:
 {text}"""
-
+    
     response_text = groq_generate(prompt)
     
-    
-    import json
-    response_text = message.content[0].text
-    
     try:
-    mcq_data = json.loads(response_text)
+        mcq_data = json.loads(response_text)
     except json.JSONDecodeError:
-    clean = response_text.replace("```json", "").replace("```", "").strip()
-    mcq_data = json.loads(clean)
+        clean = response_text.replace("```json", "").replace("```", "").strip()
+        mcq_data = json.loads(clean)
     
     return {
         "material_id": request.material_id,
@@ -405,6 +401,7 @@ Course material:
         "section": request.section,
         "quiz": mcq_data
     }
+   
 
 @app.post("/generate-german-quiz")
 def generate_german_quiz(request: MCQRequest):
@@ -455,15 +452,7 @@ Respond ONLY in this exact JSON format, no other text:
 Course material:
 {text}"""
 
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=8000,
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    )
-    
-    response_text = message.content[0].text
+   response_text = groq_generate(prompt)
     
     try:
         quiz_data = json.loads(response_text)
