@@ -4,7 +4,8 @@ import { motion } from "framer-motion";
 import AnimatedBackground from "../components/AnimatedBackground";
 
 export default function TestPage() {
-  const { courseCode } = useParams();
+  const { courseCode: rawCourseCode } = useParams();
+  const courseCode = decodeURIComponent(rawCourseCode);
   const navigate = useNavigate();
   const [mode, setMode] = useState(null);
   const [numQuestions, setNumQuestions] = useState(10);
