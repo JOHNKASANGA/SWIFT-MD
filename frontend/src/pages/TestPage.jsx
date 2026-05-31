@@ -332,21 +332,19 @@ function GermanQuiz({
     if (cachedQuestions) return;
     async function fetchQuestions() {
       try {
-        const res = await fetch(
-          `${import.meta.env.VITE_BACKEND_URL}/generate-german-quiz`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              material_id: parseInt(courseCode),
-              num_questions: numQuestions,
-              section: section || null,
-            }),
-          },
-        );
+        const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/quiz`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            course_code: courseCode,
+            num_questions: numQuestions,
+            section: section || null,
+            question_type: "german",
+          }),
+        });
         const data = await res.json();
-        setQuestions(data.quiz.questions);
-        onCache(data.quiz.questions);
+        setQuestions(data.questions);
+        onCache(data.questions);
       } catch {
         setError("Failed to generate questions. Try again.");
       } finally {
@@ -489,7 +487,7 @@ function TheoryQuiz({ courseCode, onBack }) {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ material_id: parseInt(courseCode), answer }),
+          body: JSON.stringify({ course_code: courseCode, answer }),
         },
       );
       const data = await res.json();

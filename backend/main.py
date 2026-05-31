@@ -90,8 +90,8 @@ class MCQRequest(BaseModel):
     section: str = None
 
 class TheoryRequest(BaseModel):
-    material_id: int
-    question: str
+    course_code: str
+    question: str = ""
     answer: str
 
 class QuestionBankRequest(BaseModel):
@@ -467,12 +467,11 @@ Course material:
 
 @app.post("/grade-theory")
 def grade_theory(request: TheoryRequest):
-    result = supabase.table("materials").select("*").eq("id", request.material_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Material not found")
-    material = result.data[0]
+    materials = supabase.table("materials").select("*").eq("course_code", request.course_code).execute()
+    if not materials.data:
+        raise HTTPException(status_code=404, detail="No materials found for this course")
+    material = materials.data[0]
     text = get_material_text(material)
-
     question_context = f"The question asked was: {request.question}" if request.question else ""
 
     prompt = f"""You are a strict university lecturer grading a student's theory answer.
