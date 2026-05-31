@@ -84,14 +84,18 @@ def get_material_text(material: dict) -> str:
 class GreetingRequest(BaseModel):
     username: str
 
+from typing import Optional
+
 class MCQRequest(BaseModel):
     material_id: int
     num_questions: int = 5
-    section: str = None
+    section: Optional[str] = None
+
+from typing import Optional
 
 class TheoryRequest(BaseModel):
     course_code: str
-    question: str = ""
+    question: Optional[str] = ""
     answer: str
 
 class QuestionBankRequest(BaseModel):
@@ -99,10 +103,12 @@ class QuestionBankRequest(BaseModel):
     question_type: str
     num_questions: int = 50
 
+from typing import Optional
+
 class CourseQuizRequest(BaseModel):
     course_code: str
     num_questions: int = 10
-    section: str = None
+    section: Optional[str] = None
     question_type: str = "mcq"
 
 
