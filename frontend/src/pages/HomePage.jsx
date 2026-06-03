@@ -1,65 +1,74 @@
-import { useEffect, useState } from "react"
-import { useNavigate } from "react-router-dom"
-import { motion } from "framer-motion"
-import { supabase } from "../lib/supabase"
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { supabase } from "../lib/supabase";
+import AnimatedBackground from "../components/AnimatedBackground";
 
 export default function HomePage() {
-  const navigate = useNavigate()
-  const [greeting, setGreeting] = useState("")
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const navigate = useNavigate();
+  const [greeting, setGreeting] = useState("");
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function init() {
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
-        navigate("/signin")
-        return
+        navigate("/signin");
+        return;
       }
-      setUser(user)
+      setUser(user);
 
-      const username = user.user_metadata?.full_name || user.email.split("@")[0]
+      const username =
+        user.user_metadata?.full_name || user.email.split("@")[0];
 
       try {
-        const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/generate-greeting`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username })
-        })
-        const data = await res.json()
-        setGreeting(data.greeting.replace(/^#+\s*/, ""))
+        const res = await fetch(
+          `${import.meta.env.VITE_BACKEND_URL}/generate-greeting`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username }),
+          },
+        );
+        const data = await res.json();
+        setGreeting(data.greeting.replace(/^#+\s*/, ""));
       } catch {
-        setGreeting(`Welcome back, ${username}. Let's get to work.`)
+        setGreeting(`Welcome back, ${username}. Let's get to work.`);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
     }
 
-    init()
-  }, [])
+    init();
+  }, []);
 
   async function handleSignOut() {
-    await supabase.auth.signOut()
-    navigate("/")
+    await supabase.auth.signOut();
+    navigate("/");
   }
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <p className="text-gray-500 text-sm font-bold animate-pulse">Loading...</p>
+        <p className="text-gray-500 text-sm font-bold animate-pulse">
+          Loading...
+        </p>
       </div>
-    )
+    );
   }
 
   return (
     <div className="min-h-screen bg-gray-950 px-6 py-10 max-w-2xl mx-auto">
-
+      <AnimatedBackground />
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="flex items-center justify-between mb-12"
+        className="flex items-center justify-between mb-12 "
       >
         <div className="flex items-center gap-3">
           <div className="bg-white rounded-xl w-9 h-9 flex items-center justify-center">
@@ -100,13 +109,14 @@ export default function HomePage() {
           Select your level
         </p>
         <div className="flex flex-col gap-4">
-
           <button
             onClick={() => navigate("/level/100")}
             className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-left hover:border-gray-600 transition-colors"
           >
             <p className="text-white font-black text-2xl mb-1">100 Level</p>
-            <p className="text-gray-500 text-sm">First year courses and materials</p>
+            <p className="text-gray-500 text-sm">
+              First year courses and materials
+            </p>
           </button>
 
           <button
@@ -114,12 +124,12 @@ export default function HomePage() {
             className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-left hover:border-gray-600 transition-colors"
           >
             <p className="text-white font-black text-2xl mb-1">200 Level</p>
-            <p className="text-gray-500 text-sm">Second year courses and materials</p>
+            <p className="text-gray-500 text-sm">
+              Second year courses and materials
+            </p>
           </button>
-
         </div>
       </motion.div>
-
     </div>
-  )
+  );
 }

@@ -2,10 +2,13 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import WelcomePage from "./pages/WelcomePage";
 import SignUpPage from "./pages/SignUpPage";
 import SignInPage from "./pages/SignInPage";
-import HomePage from "./pages/HomePage"
-import LevelPage from "./pages/LevelPage"
-import CoursePage from "./pages/CoursePage"
-import TestPage from "./pages/TestPage"
+import HomePage from "./pages/HomePage";
+import LevelPage from "./pages/LevelPage";
+import CoursePage from "./pages/CoursePage";
+import TestPage from "./pages/TestPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
+import ViewerPage from "./pages/ViewerPage";
 
 export default function App() {
   return (
@@ -17,7 +20,10 @@ export default function App() {
         <Route path="/home" element={<HomePage />} />
         <Route path="/level/:level" element={<LevelPage />} />
         <Route path="/course/:id" element={<CoursePage />} />
-        <Route path="/test/:materialId" element={<TestPage />} />
+        <Route path="/test/:courseCode" element={<TestPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/view/:materialId" element={<ViewerPage />} />
       </Routes>
     </BrowserRouter>
   );

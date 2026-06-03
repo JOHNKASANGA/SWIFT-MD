@@ -1,10 +1,11 @@
 import os
 import json
 import random
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from anthropic import Anthropic # Change to Groq
+from anthropic import Anthropic
 from dotenv import load_dotenv
 from supabase import create_client
 from pdf_utils import extract_text_from_url
@@ -20,24 +21,81 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY")) #Also create client for groq
+
+anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL = "llama-3.3-70b-versatile"
 
 supabase = create_client(
     os.getenv("SUPABASE_URL"),
     os.getenv("SUPABASE_SERVICE_KEY")
 )
 
+
+def groq_generate(prompt: str, max_tokens: int = 8000) -> str:
+    response = httpx.post(
+        GROQ_URL,
+        headers={
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "model": GROQ_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": max_tokens,
+            "temperature": 0.7
+        },
+        timeout=60.0
+    )
+    response.raise_for_status()
+    return response.json()["choices"][0]["message"]["content"]
+
+
+def claude_generate(prompt: str, max_tokens: int = 8000) -> str:
+    message = anthropic_client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=max_tokens,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return message.content[0].text
+
+
+def parse_json(text: str) -> dict:
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        clean = text.replace("```json", "").replace("```", "").strip()
+        return json.loads(clean)
+
+
+def get_material_text(material: dict) -> str:
+    text = material.get("extracted_text")
+    if not text:
+        text = extract_text_from_url(material["file_url"])
+        supabase.table("materials").update(
+            {"extracted_text": text}
+        ).eq("id", material["id"]).execute()
+    return text
+
+
+# ── Models ────────────────────────────────────────────────────────────────────
+
 class GreetingRequest(BaseModel):
     username: str
+
+from typing import Optional
 
 class MCQRequest(BaseModel):
     material_id: int
     num_questions: int = 5
-    section: str = None
+    section: Optional[str] = None
+
+from typing import Optional
 
 class TheoryRequest(BaseModel):
-    material_id: int
-    question: str 
+    course_code: str
+    question: Optional[str] = ""
     answer: str
 
 
@@ -72,9 +130,26 @@ def get_quiz_from_bank(course_id: int, quiz_type: str, num_questions: int = 5):
         "num_questions": len(parsed_questions),
         "questions": parsed_questions
     }
+class QuestionBankRequest(BaseModel):
+    course_code: str
+    question_type: str
+    num_questions: int = 50
+
+from typing import Optional
+
+class CourseQuizRequest(BaseModel):
+    course_code: str
+    num_questions: int = 10
+    section: Optional[str] = None
+    question_type: str = "mcq"
+
+
+# ── Routes ────────────────────────────────────────────────────────────────────
+
 @app.get("/")
 def root():
     return {"message": "Swift backend is alive"}
+
 
 @app.get("/health")
 def health():
@@ -83,7 +158,7 @@ def health():
 
 @app.post("/generate-greeting")
 def generate_greeting(request: GreetingRequest):
-    message = client.messages.create(
+    message = anthropic_client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=100,
         messages=[
@@ -93,70 +168,203 @@ def generate_greeting(request: GreetingRequest):
             }
         ]
     )
-    
-    greeting_text = message.content[0].text
-    
-    return {"greeting": greeting_text, "username": request.username}
+    return {"greeting": message.content[0].text, "username": request.username}
+
 
 @app.post("/extract-text/{material_id}")
 def extract_text(material_id: int):
-    
     result = supabase.table("materials").select("*").eq("id", material_id).execute()
-    
     if not result.data:
         raise HTTPException(status_code=404, detail="Material not found")
-    
     material = result.data[0]
-    
-    
     if material.get("extracted_text"):
-        return {
-            "material_id": material_id,
-            "title": material["title"],
-            "text": material["extracted_text"],
-            "cached": True
-        }
-    
-    
+        return {"material_id": material_id, "title": material["title"], "text": material["extracted_text"], "cached": True}
     text = extract_text_from_url(material["file_url"])
-    
-    
-    supabase.table("materials").update(
-        {"extracted_text": text}
-    ).eq("id", material_id).execute()
-    
+    supabase.table("materials").update({"extracted_text": text}).eq("id", material_id).execute()
+    return {"material_id": material_id, "title": material["title"], "text": text, "cached": False}
+
+
+@app.post("/admin/generate-bank")
+def generate_question_bank(request: QuestionBankRequest):
+    result = supabase.table("materials").select("*").eq("course_code", request.course_code).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="No materials found for this course")
+
+    all_text = ""
+    material_ids = []
+
+    for material in result.data:
+        try:
+            text = get_material_text(material)
+        except Exception:
+            continue
+        if text:
+            all_text += f"\n\n{text}"
+            material_ids.append(material["id"])
+
+    if not all_text.strip():
+        raise HTTPException(status_code=400, detail="Could not extract text from any materials")
+
+    all_text = all_text[:12000]
+
+    if request.question_type == "mcq":
+        prompt = f"""You are a university exam question generator. Based on the following course material, generate exactly {request.num_questions} multiple choice questions.
+
+Rules:
+- Each question must have exactly 4 options: A, B, C, D
+- Exactly one option must be correct
+- Questions should test understanding, not just memorization
+- Include questions on formulas, concepts, and applications
+- Make wrong options plausible
+
+Respond ONLY in this exact JSON format, no other text:
+{{
+  "questions": [
+    {{
+      "question": "Sample question?",
+      "options": {{"A": "Option A", "B": "Option B", "C": "Option C", "D": "Option D"}},
+      "correct_answer": "B",
+      "explanation": "Explanation here."
+    }}
+  ]
+}}
+
+Course material:
+{all_text}"""
+    else:
+        prompt = f"""You are a university exam question generator. Based on the following course material, generate exactly {request.num_questions} fill-in-the-blank questions.
+
+Rules:
+- Each question should have one blank represented by _____
+- The answer should be a key term or concept
+- Questions should test understanding of core concepts
+
+Respond ONLY in this exact JSON format, no other text:
+{{
+  "questions": [
+    {{
+      "question": "The process by which plants convert sunlight into energy is called _____.",
+      "correct_answer": "photosynthesis",
+      "acceptable_answers": ["photosynthesis"],
+      "explanation": "Photosynthesis is the process plants use to convert light energy into chemical energy."
+    }}
+  ]
+}}
+
+Course material:
+{all_text}"""
+
+    response_text = groq_generate(prompt)
+    questions_data = parse_json(response_text)
+
+    existing = supabase.table("question_banks").select("*").eq("course_code", request.course_code).eq("question_type", request.question_type).execute()
+    if existing.data:
+        supabase.table("question_banks").update({
+            "questions": questions_data["questions"],
+            "material_ids": material_ids
+        }).eq("course_code", request.course_code).eq("question_type", request.question_type).execute()
+    else:
+        supabase.table("question_banks").insert({
+            "course_code": request.course_code,
+            "question_type": request.question_type,
+            "questions": questions_data["questions"],
+            "material_ids": material_ids
+        }).execute()
+
     return {
-        "material_id": material_id,
-        "title": material["title"],
-        "text": text,
-        "cached": False
+        "course_code": request.course_code,
+        "question_type": request.question_type,
+        "total_questions": len(questions_data["questions"]),
+        "material_ids": material_ids
     }
+
+
+@app.post("/quiz")
+def get_quiz(request: CourseQuizRequest):
+    result = supabase.table("question_banks").select("*").eq("course_code", request.course_code).eq("question_type", request.question_type).execute()
+
+    if result.data:
+        all_questions = result.data[0]["questions"]
+        if request.section:
+            filtered = [q for q in all_questions if request.section.lower() in q.get("question", "").lower()]
+            questions = filtered if filtered else all_questions
+        else:
+            questions = all_questions
+        selected = random.sample(questions, min(request.num_questions, len(questions)))
+        return {
+            "course_code": request.course_code,
+            "question_type": request.question_type,
+            "questions": selected,
+            "from_bank": True
+        }
+
+    materials = supabase.table("materials").select("*").eq("course_code", request.course_code).execute()
+    if not materials.data:
+        raise HTTPException(status_code=404, detail="No materials found for this course")
+
+    all_text = ""
+    for material in materials.data[:3]:
+        try:
+            text = get_material_text(material)
+        except Exception:
+            continue
+        if text:
+            all_text += f"\n\n{text}"
+
+    all_text = all_text[:8000]
+
+    if not all_text.strip():
+        raise HTTPException(status_code=400, detail="Could not extract text from materials")
+
+    if request.question_type == "mcq":
+        prompt = f"""Generate exactly {request.num_questions} MCQ questions from this material. Respond ONLY in JSON:
+{{
+  "questions": [
+    {{
+      "question": "Question?",
+      "options": {{"A": "A", "B": "B", "C": "C", "D": "D"}},
+      "correct_answer": "A",
+      "explanation": "Explanation."
+    }}
+  ]
+}}
+Material: {all_text}"""
+    else:
+        prompt = f"""Generate exactly {request.num_questions} fill-in-the-blank questions from this material. Respond ONLY in JSON:
+{{
+  "questions": [
+    {{
+      "question": "The _____ is used to measure flow rate.",
+      "correct_answer": "venturimeter",
+      "acceptable_answers": ["venturimeter"],
+      "explanation": "Explanation."
+    }}
+  ]
+}}
+Material: {all_text}"""
+
+    response_text = groq_generate(prompt)
+    questions_data = parse_json(response_text)
+
+    return {
+        "course_code": request.course_code,
+        "question_type": request.question_type,
+        "questions": questions_data["questions"][:request.num_questions],
+        "from_bank": False
+    }
+
 
 @app.post("/generate-mcq")
 def generate_mcq(request: MCQRequest):
-   
     result = supabase.table("materials").select("*").eq("id", request.material_id).execute()
-    
     if not result.data:
         raise HTTPException(status_code=404, detail="Material not found")
-    
     material = result.data[0]
-    
-    
-    text = material.get("extracted_text")
-    if not text:
-        text = extract_text_from_url(material["file_url"])
-        supabase.table("materials").update(
-            {"extracted_text": text}
-        ).eq("id", request.material_id).execute()
-    
-    
-    section_instruction = ""
-    if request.section:
-        section_instruction = f"Focus ONLY on the section about: {request.section}."
-    
-    prompt = f"""You are a university exam question generator. Based on the following course material, generate exactly {request.num_questions} multiple choice questions, if {request.num_questions} is not enough to cover the topic extensively create 50 mcqs. if {request.num_questions} is not given automatically make 50 questions 
-    
+    text = get_material_text(material)
+
+    section_instruction = f"Focus ONLY on the section about: {request.section}." if request.section else ""
+
+    prompt = f"""You are a university exam question generator. Based on the following course material, generate exactly {request.num_questions} multiple choice questions.
 
 {section_instruction}
 
@@ -187,26 +395,9 @@ Respond ONLY in this exact JSON format, no other text:
 Course material:
 {text}"""
 
-    
-    message = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=8000,
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    )
-    
-    
-    import json
-    response_text = message.content[0].text
-    
-    try:
-        mcq_data = json.loads(response_text)
-    except json.JSONDecodeError:
-        
-        clean = response_text.replace("```json", "").replace("```", "").strip()
-        mcq_data = json.loads(clean)
-    
+    response_text = groq_generate(prompt)
+    mcq_data = parse_json(response_text)
+
     return {
         "material_id": request.material_id,
         "title": material["title"],
@@ -214,28 +405,17 @@ Course material:
         "quiz": mcq_data
     }
 
+
 @app.post("/generate-german-quiz")
 def generate_german_quiz(request: MCQRequest):
-    
     result = supabase.table("materials").select("*").eq("id", request.material_id).execute()
-    
     if not result.data:
         raise HTTPException(status_code=404, detail="Material not found")
-    
     material = result.data[0]
-    
-    
-    text = material.get("extracted_text")
-    if not text:
-        text = extract_text_from_url(material["file_url"])
-        supabase.table("materials").update(
-            {"extracted_text": text}
-        ).eq("id", request.material_id).execute()
-    
-    section_instruction = ""
-    if request.section:
-        section_instruction = f"Focus ONLY on the section about: {request.section}."
-    
+    text = get_material_text(material)
+
+    section_instruction = f"Focus ONLY on the section about: {request.section}." if request.section else ""
+
     prompt = f"""You are a strict university exam question generator. Based on the following course material, generate exactly {request.num_questions} fill-in-the-blank or short-answer questions.
 
 {section_instruction}
@@ -246,7 +426,7 @@ Rules:
 - No multiple choice — the student must recall the answer from memory
 - Mix question types: definitions, formulas, numerical values, names of concepts
 - Answers should be unambiguous — only one correct response is possible
-- Include acceptable alternative answers where relevant (e.g. abbreviations, different notations)
+- Include acceptable alternative answers where relevant
 
 Respond ONLY in this exact JSON format, no other text:
 {{
@@ -264,50 +444,27 @@ Respond ONLY in this exact JSON format, no other text:
 Course material:
 {text}"""
 
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=8000,
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    )
-    
-    response_text = message.content[0].text
-    
-    try:
-        quiz_data = json.loads(response_text)
-    except json.JSONDecodeError:
-        clean = response_text.replace("```json", "").replace("```", "").strip()
-        quiz_data = json.loads(clean)
-    
+    response_text = groq_generate(prompt)
+    quiz_data = parse_json(response_text)
+
     return {
         "material_id": request.material_id,
         "title": material["title"],
         "section": request.section,
         "quiz": quiz_data
     }
+
+
 @app.post("/generate-theory-question")
 def generate_theory_question(request: MCQRequest):
-    # Get the material
     result = supabase.table("materials").select("*").eq("id", request.material_id).execute()
-    
     if not result.data:
         raise HTTPException(status_code=404, detail="Material not found")
-    
     material = result.data[0]
-    
-    # Get the extracted text
-    text = material.get("extracted_text")
-    if not text:
-        text = extract_text_from_url(material["file_url"])
-        supabase.table("materials").update(
-            {"extracted_text": text}
-        ).eq("id", request.material_id).execute()
-    
-    section_instruction = ""
-    if request.section:
-        section_instruction = f"Focus ONLY on the section about: {request.section}."
-    
+    text = get_material_text(material)
+
+    section_instruction = f"Focus ONLY on the section about: {request.section}." if request.section else ""
+
     prompt = f"""You are a university lecturer creating theory exam questions. Based on the following course material, generate exactly {request.num_questions} theory questions that require written explanations.
 
 {section_instruction}
@@ -337,22 +494,9 @@ Respond ONLY in this exact JSON format, no other text:
 Course material:
 {text}"""
 
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=8000,
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    )
-    
-    response_text = message.content[0].text
-    
-    try:
-        questions_data = json.loads(response_text)
-    except json.JSONDecodeError:
-        clean = response_text.replace("```json", "").replace("```", "").strip()
-        questions_data = json.loads(clean)
-    
+    response_text = groq_generate(prompt)
+    questions_data = parse_json(response_text)
+
     return {
         "material_id": request.material_id,
         "title": material["title"],
@@ -360,29 +504,17 @@ Course material:
         "theory": questions_data
     }
 
+
 @app.post("/grade-theory")
 def grade_theory(request: TheoryRequest):
-    
-    result = supabase.table("materials").select("*").eq("id", request.material_id).execute()
-    
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Material not found")
-    
-    material = result.data[0]
-    
-    
-    text = material.get("extracted_text")
-    if not text:
-        text = extract_text_from_url(material["file_url"])
-        supabase.table("materials").update(
-            {"extracted_text": text}
-        ).eq("id", request.material_id).execute()
-    
-    question_context = ""
-    if request.question:
-        question_context = f"The question asked was: {request.question}"
-    
-    prompt = f"""role:"Strict University Lecturer","task":"Grade student theory answer","constraints":"Use ONLY provided material; no external knowledge","question_logic":"Closely related to material but requires application","output":"JSON format question and grading rubric"
+    materials = supabase.table("materials").select("*").eq("course_code", request.course_code).execute()
+    if not materials.data:
+        raise HTTPException(status_code=404, detail="No materials found for this course")
+    material = materials.data[0]
+    text = get_material_text(material)
+    question_context = f"The question asked was: {request.question}" if request.question else ""
+
+    prompt = f"""You are a strict university lecturer grading a student's theory answer.
 
 {question_context}
 
@@ -403,7 +535,7 @@ Respond ONLY in this exact JSON format, no other text:
   "feedback": {{
     "strengths": ["Correctly identified the three components of a venturimeter", "Good understanding of Bernoulli's principle"],
     "weaknesses": ["Did not mention the coefficient of discharge", "Formula for actual discharge was incomplete"],
-    "missing_points": ["The role of C_d in accounting for energy losses", "The relationship between theoretical and actual discharge"],
+    "missing_points": ["The role of C_d in accounting for energy losses"],
     "suggestion": "Review the section on actual vs theoretical discharge and understand why C_d is always less than 1."
   }}
 }}
@@ -413,22 +545,9 @@ Grade fairly — a perfect answer gets 10/10, a completely wrong answer gets 0/1
 Course material:
 {text}"""
 
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=8000,
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    )
-    
-    response_text = message.content[0].text
-    
-    try:
-        grade_data = json.loads(response_text)
-    except json.JSONDecodeError:
-        clean = response_text.replace("```json", "").replace("```", "").strip()
-        grade_data = json.loads(clean)
-    
+    response_text = claude_generate(prompt)
+    grade_data = parse_json(response_text)
+
     return {
         "material_id": request.material_id,
         "title": material["title"],
