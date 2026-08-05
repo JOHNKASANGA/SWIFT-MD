@@ -194,6 +194,11 @@ class TheoryRequest(BaseModel):
     question: Optional[str] = ""
     answer: str
 
+class TheoryQuestionRequest(BaseModel):
+    course_code: str
+    num_questions: int = 5
+    section: Optional[str] = None
+
 class QuestionBankRequest(BaseModel):
     course_code: str
     question_type: str
@@ -338,6 +343,33 @@ def get_quiz(request: CourseQuizRequest):
         "questions": questions[:request.num_questions],
         "from_bank": False
     }
+
+
+@app.post("/generate-theory-question")
+def generate_theory_question(request: TheoryQuestionRequest):
+    materials = supabase.table("materials").select("*").eq("course_code", request.course_code).execute()
+    if not materials.data:
+        raise HTTPException(status_code=404, detail="No materials found for this course")
+
+    all_text = ""
+    for material in materials.data[:3]:
+        text = get_material_text(material)
+        if text:
+            all_text += f"\n\n{text}"
+    all_text = all_text[:8000]
+
+    if not all_text.strip():
+        raise HTTPException(status_code=400, detail="Could not extract text from materials")
+
+    questions = generate_questions_from_chunk(all_text, "theory", request.num_questions, request.course_code)
+    if not questions:
+        raise HTTPException(status_code=500, detail="Failed to generate theory questions. Please try again.")
+
+    return {
+        "course_code": request.course_code,
+        "questions": questions
+    }
+
 
 @app.post("/grade-theory")
 def grade_theory(request: TheoryRequest):
