@@ -347,6 +347,24 @@ def get_quiz(request: CourseQuizRequest):
 
 @app.post("/generate-theory-question")
 def generate_theory_question(request: TheoryQuestionRequest):
+    # Try the pre-generated bank first
+    bank = supabase.table("question_banks").select("*").eq("course_code", request.course_code).eq("question_type", "theory").execute()
+
+    if bank.data:
+        all_questions = bank.data[0]["questions"]
+        if request.section:
+            filtered = [q for q in all_questions if request.section.lower() in q.get("question", "").lower()]
+            questions = filtered if filtered else all_questions
+        else:
+            questions = all_questions
+        selected = random.sample(questions, min(request.num_questions, len(questions)))
+        return {
+            "course_code": request.course_code,
+            "questions": selected,
+            "from_bank": True
+        }
+
+    # No bank exists - generate live
     materials = supabase.table("materials").select("*").eq("course_code", request.course_code).execute()
     if not materials.data:
         raise HTTPException(status_code=404, detail="No materials found for this course")
@@ -367,7 +385,8 @@ def generate_theory_question(request: TheoryQuestionRequest):
 
     return {
         "course_code": request.course_code,
-        "questions": questions
+        "questions": questions,
+        "from_bank": False
     }
 
 
