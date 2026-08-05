@@ -37,22 +37,30 @@ supabase = create_client(
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def groq_generate(prompt: str, max_tokens: int = 8000) -> str:
-    response = httpx.post(
-        GROQ_URL,
-        headers={
-            "Authorization": f"Bearer {GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        },
-        json={
-            "model": GROQ_MODEL,
-            "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": max_tokens,
-            "temperature": 0.7
-        },
-        timeout=60.0
-    )
-    response.raise_for_status()
-    return response.json()["choices"][0]["message"]["content"]
+    import time
+    for attempt in range(3):
+        response = httpx.post(
+            GROQ_URL,
+            headers={
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": GROQ_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": max_tokens,
+                "temperature": 0.7
+            },
+            timeout=60.0
+        )
+        if response.status_code == 429:
+            if attempt < 2:
+                time.sleep(15)
+                continue
+            else:
+                response.raise_for_status()
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"]
 
 
 def claude_generate(prompt: str, max_tokens: int = 8000) -> str:
