@@ -436,7 +436,7 @@ Grade fairly — a perfect answer gets 10/10, a completely wrong answer gets 0/1
 Course material for reference:
 {context_text}"""
 
-    response_text = claude_generate(prompt)
+    response_text = groq_generate(prompt)
     grade_data = parse_json(response_text)
 
     return {
