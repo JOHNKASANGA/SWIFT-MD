@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import AnimatedBackground from "../components/AnimatedBackground";
@@ -358,7 +358,7 @@ function GermanQuiz({
     const q = questions[current];
     const acceptable = [q.correct_answer, ...(q.acceptable_answers || [])];
     const correct = acceptable.some(
-      (a) => a.toLowerCase().trim() === input.toLowerCase().trim(),
+      (a) => a.toLowerCase().trim() === input.toLowerCase().trim()
     );
     setIsCorrect(correct);
     setChecked(true);
@@ -440,7 +440,11 @@ function GermanQuiz({
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className={`mt-4 p-4 rounded-xl border ${isCorrect ? "bg-green-900 border-green-600" : "bg-red-900 border-red-600"}`}
+            className={`mt-4 p-4 rounded-xl border ${
+              isCorrect
+                ? "bg-green-900 border-green-600"
+                : "bg-red-900 border-red-600"
+            }`}
           >
             <p className="text-white text-xs font-bold mb-1">
               {isCorrect ? "Correct!" : `Wrong. Answer: ${q.correct_answer}`}
@@ -473,57 +477,142 @@ function GermanQuiz({
 // ─── Theory Quiz ─────────────────────────────────────────────────────────────
 
 function TheoryQuiz({ courseCode, onBack }) {
+  const [questions, setQuestions] = useState([]);
+  const [current, setCurrent] = useState(0);
   const [answer, setAnswer] = useState("");
   const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [grading, setGrading] = useState(false);
   const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+  const [allResults, setAllResults] = useState([]);
+
+  useEffect(() => {
+    async function fetchQuestions() {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_BACKEND_URL}/generate-theory-question`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ course_code: courseCode, num_questions: 5 }),
+          }
+        );
+        const data = await res.json();
+        setQuestions(data.questions || []);
+      } catch {
+        setError("Failed to load theory questions. Try again.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchQuestions();
+  }, [courseCode]);
 
   async function handleSubmit() {
     if (!answer.trim()) return;
-    setLoading(true);
+    setGrading(true);
     try {
       const res = await fetch(
         `${import.meta.env.VITE_BACKEND_URL}/grade-theory`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ course_code: courseCode, answer }),
-        },
+          body: JSON.stringify({
+            course_code: courseCode,
+            question: questions[current]?.question || "",
+            answer,
+          }),
+        }
       );
       const data = await res.json();
       setResult(data.grading);
+      setAllResults([
+        ...allResults,
+        { question: questions[current]?.question, grading: data.grading },
+      ]);
     } catch {
       setError("Failed to grade. Try again.");
     } finally {
-      setLoading(false);
+      setGrading(false);
     }
   }
+
+  function handleNext() {
+    if (current + 1 >= questions.length) {
+      setDone(true);
+    } else {
+      setCurrent(current + 1);
+      setAnswer("");
+      setResult(null);
+    }
+  }
+
+  if (loading) return <LoadingScreen />;
+  if (error) return <ErrorScreen message={error} onBack={onBack} />;
+
+  if (done) {
+    const avg =
+      allResults.length > 0
+        ? allResults.reduce((sum, r) => sum + r.grading.score, 0) /
+          allResults.length
+        : 0;
+    return (
+      <div className="min-h-screen bg-gray-950 px-6 py-10 max-w-2xl mx-auto">
+        <button
+          onClick={onBack}
+          className="text-gray-500 hover:text-white text-sm font-bold transition-colors mb-12"
+        >
+          Back
+        </button>
+        <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">
+          Theory Complete
+        </p>
+        <p className="text-white font-black text-5xl mb-8">
+          {avg.toFixed(1)}
+          <span className="text-gray-500 text-2xl">/10 avg</span>
+        </p>
+        <div className="flex flex-col gap-4">
+          {allResults.map((r, i) => (
+            <div
+              key={i}
+              className="bg-gray-900 border border-gray-800 rounded-2xl p-5"
+            >
+              <p className="text-gray-400 text-xs mb-2">{r.question}</p>
+              <p className="text-white font-black">
+                {r.grading.score}/10 - {r.grading.grade}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const q = questions[current];
 
   if (result) {
     return (
       <div className="min-h-screen bg-gray-950 px-6 py-10 max-w-2xl mx-auto">
-        <button
-          onClick={() => {
-            setResult(null);
-            setAnswer("");
-          }}
-          className="text-gray-500 hover:text-white text-sm font-bold transition-colors mb-12"
-        >
-          ← Try Again
-        </button>
-
+        <div className="flex items-center justify-between mb-12">
+          <button
+            onClick={onBack}
+            className="text-gray-500 hover:text-white text-sm font-bold"
+          >
+            Back
+          </button>
+          <span className="text-gray-500 text-sm font-bold">
+            {current + 1} / {questions.length}
+          </span>
+        </div>
         <div className="mb-6">
-          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">
-            Your Score
-          </p>
           <p className="text-white font-black text-5xl">
             {result.score}
             <span className="text-gray-500 text-2xl">/{result.max_score}</span>
           </p>
           <p className="text-gray-400 text-sm mt-1">Grade: {result.grade}</p>
         </div>
-
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 mb-8">
           {result.feedback.strengths?.length > 0 && (
             <div className="bg-green-900 border border-green-700 rounded-2xl p-5">
               <p className="text-green-400 text-xs font-bold uppercase tracking-widest mb-3">
@@ -531,12 +620,11 @@ function TheoryQuiz({ courseCode, onBack }) {
               </p>
               {result.feedback.strengths.map((s, i) => (
                 <p key={i} className="text-white text-sm mb-1">
-                  • {s}
+                  - {s}
                 </p>
               ))}
             </div>
           )}
-
           {result.feedback.weaknesses?.length > 0 && (
             <div className="bg-red-900 border border-red-700 rounded-2xl p-5">
               <p className="text-red-400 text-xs font-bold uppercase tracking-widest mb-3">
@@ -544,12 +632,11 @@ function TheoryQuiz({ courseCode, onBack }) {
               </p>
               {result.feedback.weaknesses.map((w, i) => (
                 <p key={i} className="text-white text-sm mb-1">
-                  • {w}
+                  - {w}
                 </p>
               ))}
             </div>
           )}
-
           {result.feedback.suggestion && (
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
               <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-2">
@@ -559,25 +646,47 @@ function TheoryQuiz({ courseCode, onBack }) {
             </div>
           )}
         </div>
+        <button
+          onClick={handleNext}
+          className="w-full bg-white text-gray-950 font-black py-3 rounded-xl hover:bg-gray-200 transition-colors"
+        >
+          {current + 1 >= questions.length
+            ? "See Final Results"
+            : "Next Question"}
+        </button>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-950 px-6 py-10 max-w-2xl mx-auto">
-      <button
-        onClick={onBack}
-        className="text-gray-500 hover:text-white text-sm font-bold transition-colors mb-12"
-      >
-        ← Back
-      </button>
-
-      <h1 className="text-white font-black text-2xl mb-2">Theory Answer</h1>
-      <p className="text-gray-500 text-sm mb-8">
-        Write everything you know about this material. AI will grade your
-        response.
+      <div className="flex items-center justify-between mb-12">
+        <button
+          onClick={onBack}
+          className="text-gray-500 hover:text-white text-sm font-bold"
+        >
+          Back
+        </button>
+        <span className="text-gray-500 text-sm font-bold">
+          {current + 1} / {questions.length}
+        </span>
+      </div>
+      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">
+        {q?.type} - {q?.difficulty}
       </p>
-
+      <p className="text-white font-black text-xl mb-8">{q?.question}</p>
+      {q?.key_points?.length > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-6">
+          <p className="text-gray-500 text-xs font-bold mb-2">
+            KEY POINTS TO COVER
+          </p>
+          {q.key_points.map((kp, i) => (
+            <p key={i} className="text-gray-400 text-xs">
+              - {kp}
+            </p>
+          ))}
+        </div>
+      )}
       <textarea
         value={answer}
         onChange={(e) => setAnswer(e.target.value)}
@@ -585,15 +694,13 @@ function TheoryQuiz({ courseCode, onBack }) {
         rows={10}
         className="w-full bg-gray-800 border border-gray-700 text-white placeholder-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors resize-none mb-6"
       />
-
       {error && <p className="text-red-400 text-xs font-bold mb-4">{error}</p>}
-
       <button
         onClick={handleSubmit}
-        disabled={loading || !answer.trim()}
+        disabled={grading || !answer.trim()}
         className="w-full bg-white text-gray-950 font-black py-3 rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-30"
       >
-        {loading ? "Grading..." : "Submit for Grading"}
+        {grading ? "Grading..." : "Submit for Grading"}
       </button>
     </div>
   );
@@ -652,7 +759,11 @@ function ResultsScreen({ score, total, answers, onBack, showCorrect }) {
         {answers.map((a, i) => (
           <div
             key={i}
-            className={`rounded-xl p-4 border ${a.isCorrect ? "bg-green-900 border-green-700" : "bg-red-900 border-red-700"}`}
+            className={`rounded-xl p-4 border ${
+              a.isCorrect
+                ? "bg-green-900 border-green-700"
+                : "bg-red-900 border-red-700"
+            }`}
           >
             <p className="text-white text-sm font-bold mb-1">{a.question}</p>
             <p className="text-gray-300 text-xs">
