@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import WelcomePage from "./pages/WelcomePage";
 import SignUpPage from "./pages/SignUpPage";
@@ -11,6 +12,23 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 import ViewerPage from "./pages/ViewerPage";
 
 export default function App() {
+  useEffect(() => {
+    // Strip any leftover OAuth hash fragment from the URL after Supabase
+    // has had a chance to process it. Without this, a stale "#access_token=..."
+    // hash gets re-parsed as a fresh (now expired) OAuth callback on every
+    // page load, which breaks session persistence.
+    if (window.location.hash && window.location.hash.length > 1) {
+      const timeout = setTimeout(() => {
+        window.history.replaceState(
+          null,
+          "",
+          window.location.pathname + window.location.search
+        );
+      }, 500);
+      return () => clearTimeout(timeout);
+    }
+  }, []);
+
   return (
     <BrowserRouter>
       <Routes>
