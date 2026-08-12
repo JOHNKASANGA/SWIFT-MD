@@ -13,12 +13,13 @@ export default function HomePage() {
   useEffect(() => {
     async function init() {
       const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
         navigate("/signin");
         return;
       }
+      const user = session.user;
       setUser(user);
 
       const username =
@@ -31,7 +32,7 @@ export default function HomePage() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ username }),
-          },
+          }
         );
         const data = await res.json();
         setGreeting(data.greeting.replace(/^#+\s*/, ""));
