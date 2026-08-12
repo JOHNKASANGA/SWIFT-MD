@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import AnimatedBackground from "../components/AnimatedBackground";
+import MathText from "../components/MathText";
+import MathToolbar from "../components/MathToolbar";
 
 export default function TestPage() {
   const { courseCode: rawCourseCode } = useParams();
@@ -261,7 +263,9 @@ function MCQQuiz({
         animate={{ opacity: 1, x: 0 }}
         className="mb-8"
       >
-        <p className="text-white font-black text-xl mb-6">{q.question}</p>
+        <p className="text-white font-black text-xl mb-6">
+          <MathText text={q.question} />
+        </p>
         <div className="flex flex-col gap-3">
           {Object.entries(q.options).map(([key, value]) => {
             let style = "bg-gray-900 border border-gray-800 text-white";
@@ -279,7 +283,7 @@ function MCQQuiz({
                 className={`${style} rounded-xl px-5 py-4 text-left text-sm font-bold transition-colors`}
               >
                 <span className="text-gray-400 mr-3">{key}.</span>
-                {value}
+                <MathText text={value} />
               </button>
             );
           })}
@@ -424,9 +428,14 @@ function GermanQuiz({
         animate={{ opacity: 1, x: 0 }}
         className="mb-8"
       >
-        <p className="text-white font-black text-xl mb-2">{q.question}</p>
+        <p className="text-white font-black text-xl mb-2">
+          <MathText text={q.question} />
+        </p>
         {q.hint && <p className="text-gray-500 text-xs mb-6">Hint: {q.hint}</p>}
 
+        {!checked && (
+          <MathToolbar onInsert={(symbol) => setInput(input + symbol)} />
+        )}
         <input
           type="text"
           value={input}
@@ -674,7 +683,9 @@ function TheoryQuiz({ courseCode, onBack }) {
       <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">
         {q?.type} - {q?.difficulty}
       </p>
-      <p className="text-white font-black text-xl mb-8">{q?.question}</p>
+      <p className="text-white font-black text-xl mb-8">
+        <MathText text={q?.question} />
+      </p>
       {q?.key_points?.length > 0 && (
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-6">
           <p className="text-gray-500 text-xs font-bold mb-2">
@@ -687,6 +698,7 @@ function TheoryQuiz({ courseCode, onBack }) {
           ))}
         </div>
       )}
+      <MathToolbar onInsert={(symbol) => setAnswer(answer + symbol)} />
       <textarea
         value={answer}
         onChange={(e) => setAnswer(e.target.value)}
