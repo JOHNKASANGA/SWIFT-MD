@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import AnimatedBackground from "../components/AnimatedBackground";
 import MathText from "../components/MathText";
 import MathToolbar from "../components/MathToolbar";
+import BookLoader from "../components/BookLoader";
 
 export default function TestPage() {
   const { courseCode: rawCourseCode } = useParams();
@@ -723,7 +724,8 @@ function TheoryQuiz({ courseCode, onBack }) {
 function LoadingScreen() {
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-3">
-      <p className="text-gray-500 text-sm font-bold animate-pulse">
+      <BookLoader />
+      <p className="text-gray-500 text-sm font-bold animate-pulse mt-2">
         Generating questions...
       </p>
       <p className="text-gray-700 text-xs">This may take 20–30 seconds</p>
