@@ -1,5 +1,7 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { supabase } from "../lib/supabase";
 
 const circles = Array.from({ length: 20 }, (_, i) => ({
   id: i,
@@ -12,6 +14,31 @@ const circles = Array.from({ length: 20 }, (_, i) => ({
 
 export default function WelcomePage() {
   const navigate = useNavigate();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    async function checkSession() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session) {
+        navigate("/home");
+      } else {
+        setChecking(false);
+      }
+    }
+    checkSession();
+  }, []);
+
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <p className="text-gray-500 text-sm font-bold animate-pulse">
+          Loading...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen bg-gray-950 flex flex-col items-center justify-center px-4 overflow-hidden">
