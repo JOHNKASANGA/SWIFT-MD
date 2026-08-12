@@ -1,7 +1,6 @@
 import { InlineMath } from "react-katex";
 import "katex/dist/katex.min.css";
 
-// Renders text that may contain \( ... \) or $ ... $ LaTeX segments
 export default function MathText({ text }) {
   if (!text) return null;
 
@@ -14,12 +13,18 @@ export default function MathText({ text }) {
           (part.startsWith("\\(") && part.endsWith("\\)")) ||
           (part.startsWith("$") && part.endsWith("$"));
         if (isMath) {
-          const formula = part.replace(/^\\\(|\\\)$|^\$|\$$/g, "");
-          try {
-            return <InlineMath key={i} math={formula} />;
-          } catch {
-            return <span key={i}>{part}</span>;
-          }
+          const formula = part.replace(/^\\\(|\\\)$|^\$|\$$/g, "").trim();
+          if (!formula) return null;
+          return (
+            <InlineMath
+              key={i}
+              math={formula}
+              renderError={() => (
+                <span className="text-gray-400">{formula}</span>
+              )}
+              settings={{ throwOnError: false, strict: false }}
+            />
+          );
         }
         return <span key={i}>{part}</span>;
       })}
