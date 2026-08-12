@@ -19,10 +19,12 @@ export default function MathText({ text }) {
             <InlineMath
               key={i}
               math={formula}
-              renderError={() => (
-                <span className="text-gray-400">{formula}</span>
-              )}
-              settings={{ throwOnError: false, strict: false }}
+              throwOnError={false}
+              strict={false}
+              renderError={(error) => {
+                console.error("KaTeX render error for formula:", formula, error);
+                return <span className="text-gray-400">{formula}</span>;
+              }}
             />
           );
         }
