@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "../lib/supabase";
@@ -9,21 +9,12 @@ export default function HomePage() {
   const [greeting, setGreeting] = useState("");
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const initialized = useRef(false);
 
   useEffect(() => {
-    async function init() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) {
-        navigate("/signin");
-        return;
-      }
-      const user = session.user;
-      setUser(user);
-
+    async function loadGreeting(currentUser) {
       const username =
-        user.user_metadata?.full_name || user.email.split("@")[0];
+        currentUser.user_metadata?.full_name || currentUser.email.split("@")[0];
 
       try {
         const res = await fetch(
@@ -43,7 +34,25 @@ export default function HomePage() {
       }
     }
 
-    init();
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === "INITIAL_SESSION") {
+          if (!session) {
+            navigate("/signin");
+            return;
+          }
+          if (!initialized.current) {
+            initialized.current = true;
+            setUser(session.user);
+            loadGreeting(session.user);
+          }
+        } else if (event === "SIGNED_OUT") {
+          navigate("/signin");
+        }
+      }
+    );
+
+    return () => listener.subscription.unsubscribe();
   }, []);
 
   async function handleSignOut() {

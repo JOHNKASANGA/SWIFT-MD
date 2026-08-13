@@ -1,6 +1,6 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
 const circles = Array.from({ length: 20 }, (_, i) => ({
@@ -17,17 +17,20 @@ export default function WelcomePage() {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    async function checkSession() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session) {
-        navigate("/home");
-      } else {
-        setChecking(false);
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === "INITIAL_SESSION") {
+          if (session) {
+            navigate("/home");
+          } else {
+            setChecking(false);
+          }
+        } else if (event === "SIGNED_IN") {
+          navigate("/home");
+        }
       }
-    }
-    checkSession();
+    );
+    return () => listener.subscription.unsubscribe();
   }, []);
 
   if (checking) {
@@ -42,7 +45,6 @@ export default function WelcomePage() {
 
   return (
     <div className="relative min-h-screen bg-gray-950 flex flex-col items-center justify-center px-4 overflow-hidden">
-      {/* Animated background circles */}
       {circles.map((circle) => (
         <motion.div
           key={circle.id}
@@ -66,8 +68,6 @@ export default function WelcomePage() {
           }}
         />
       ))}
-
-      {/* Logo */}
       <motion.div
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
@@ -77,8 +77,6 @@ export default function WelcomePage() {
         <h1 className="text-6xl font-black text-white tracking-tight">Swift</h1>
         <p className="text-gray-400 text-lg mt-3">Study smarter. Not harder.</p>
       </motion.div>
-
-      {/* Buttons */}
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}

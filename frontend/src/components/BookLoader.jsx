@@ -6,105 +6,155 @@ export default function BookLoader() {
 
   useEffect(() => {
     const mount = mountRef.current;
-    const width = mount.clientWidth;
-    const height = mount.clientHeight;
+    if (!mount) return;
+
+    let width = mount.clientWidth || 180;
+    let height = mount.clientHeight || 180;
 
     const scene = new THREE.Scene();
-    scene.background = null;
 
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.set(0, 2.2, 4.2);
+    const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
+    camera.position.set(0, 2.6, 4.6);
     camera.lookAt(0, 0, 0);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    } catch {
+      return; // WebGL unavailable, silently skip the 3D loader
+    }
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     mount.appendChild(renderer.domElement);
 
     // Lighting
-    const ambient = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambient);
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.1);
-    dirLight.position.set(2, 4, 3);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    dirLight.position.set(2, 5, 3);
     scene.add(dirLight);
+    const fillLight = new THREE.DirectionalLight(0x88aaff, 0.3);
+    fillLight.position.set(-3, 2, -2);
+    scene.add(fillLight);
 
-    // Book base (spine + back cover, stays flat)
+    // Colors chosen to stand out against a dark (gray-950) background
     const coverMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.5,
-      metalness: 0.1,
+      color: 0x4f7cff, // bright blue cover
+      roughness: 0.4,
+      metalness: 0.15,
+    });
+    const spineMaterial = new THREE.MeshStandardMaterial({
+      color: 0x3a5fd9,
+      roughness: 0.4,
     });
     const pageMaterial = new THREE.MeshStandardMaterial({
-      color: 0xe5e7eb,
-      roughness: 0.8,
+      color: 0xfafaf5,
+      roughness: 0.9,
     });
 
     const bookGroup = new THREE.Group();
     scene.add(bookGroup);
 
-    // Back cover (static, flat on "table")
-    const backCoverGeo = new THREE.BoxGeometry(1.6, 0.03, 2.2);
-    const backCover = new THREE.Mesh(backCoverGeo, coverMaterial);
-    backCover.position.set(0, 0, 0);
+    const BOOK_W = 1.6;
+    const BOOK_D = 2.1;
+
+    // Back cover — flat base, does not move
+    const backCover = new THREE.Mesh(
+      new THREE.BoxGeometry(BOOK_W, 0.04, BOOK_D),
+      coverMaterial
+    );
     bookGroup.add(backCover);
 
-    // Pages stack (static, sits on back cover)
-    const pagesGeo = new THREE.BoxGeometry(1.5, 0.15, 2.1);
-    const pages = new THREE.Mesh(pagesGeo, pageMaterial);
-    pages.position.set(0, 0.09, 0);
+    // Spine — thin bar along the hinge edge
+    const spine = new THREE.Mesh(
+      new THREE.BoxGeometry(BOOK_W, 0.22, 0.06),
+      spineMaterial
+    );
+    spine.position.set(0, 0.09, -BOOK_D / 2);
+    bookGroup.add(spine);
+
+    // Page block — sits on the back cover
+    const pages = new THREE.Mesh(
+      new THREE.BoxGeometry(BOOK_W - 0.08, 0.16, BOOK_D - 0.08),
+      pageMaterial
+    );
+    pages.position.set(0, 0.1, 0);
     bookGroup.add(pages);
 
-    // Front cover — hinges open/closed around the spine edge
-    const coverPivot = new THREE.Group();
-    coverPivot.position.set(0, 0.17, -1.1); // spine edge
-    bookGroup.add(coverPivot);
+    // Front cover — pivots open/closed around the spine edge (back of the book)
+    const hinge = new THREE.Group();
+    hinge.position.set(0, 0.2, -BOOK_D / 2);
+    bookGroup.add(hinge);
 
-    const frontCoverGeo = new THREE.BoxGeometry(1.6, 0.03, 2.2);
-    const frontCover = new THREE.Mesh(frontCoverGeo, coverMaterial);
-    frontCover.position.set(0, 0, 1.1); // offset so pivot is at the spine edge
-    coverPivot.add(frontCover);
+    const frontCover = new THREE.Mesh(
+      new THREE.BoxGeometry(BOOK_W, 0.04, BOOK_D),
+      coverMaterial
+    );
+    // Shift the mesh forward by half its depth so it hinges from its back edge
+    frontCover.position.set(0, 0, BOOK_D / 2);
+    hinge.add(frontCover);
 
-    bookGroup.rotation.x = -0.3;
+    bookGroup.rotation.x = -0.35;
 
-    let frame;
+    let frameId;
     const clock = new THREE.Clock();
 
     function animate() {
-      frame = requestAnimationFrame(animate);
+      frameId = requestAnimationFrame(animate);
       const t = clock.getElapsedTime();
 
-      // Smooth open/close loop between ~10deg and ~170deg
-      const cycle = (Math.sin(t * 0.8) + 1) / 2; // 0 -> 1 -> 0
-      const angle = THREE.MathUtils.lerp(-0.15, -Math.PI + 0.15, cycle);
-      coverPivot.rotation.x = angle;
+      // Ease between mostly-closed and mostly-open
+      const cycle = (Math.sin(t * 0.9) + 1) / 2;
+      const eased = cycle * cycle * (3 - 2 * cycle); // smoothstep
+      hinge.rotation.x = THREE.MathUtils.lerp(-0.1, -Math.PI + 0.25, eased);
 
-      bookGroup.rotation.y = Math.sin(t * 0.3) * 0.15;
+      bookGroup.rotation.y = Math.sin(t * 0.35) * 0.25;
 
       renderer.render(scene, camera);
     }
     animate();
 
-    function handleResize() {
-      const w = mount.clientWidth;
-      const h = mount.clientHeight;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-    }
-    window.addEventListener("resize", handleResize);
+    // Keep the canvas correctly sized even if the container's dimensions
+    // weren't finalized at mount time (flex/animation layouts can do this).
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const w = entry.contentRect.width;
+        const h = entry.contentRect.height;
+        if (w === 0 || h === 0) continue;
+        width = w;
+        height = h;
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+        renderer.setSize(width, height);
+      }
+    });
+    resizeObserver.observe(mount);
 
     return () => {
-      cancelAnimationFrame(frame);
-      window.removeEventListener("resize", handleResize);
-      mount.removeChild(renderer.domElement);
-      backCoverGeo.dispose();
-      pagesGeo.dispose();
-      frontCoverGeo.dispose();
+      cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+      if (mount.contains(renderer.domElement)) {
+        mount.removeChild(renderer.domElement);
+      }
+      backCover.geometry.dispose();
+      spine.geometry.dispose();
+      pages.geometry.dispose();
+      frontCover.geometry.dispose();
       coverMaterial.dispose();
+      spineMaterial.dispose();
       pageMaterial.dispose();
       renderer.dispose();
     };
   }, []);
 
-  return <div ref={mountRef} style={{ width: "180px", height: "180px" }} />;
+  return (
+    <div
+      ref={mountRef}
+      style={{
+        width: "180px",
+        height: "180px",
+        minWidth: "180px",
+        minHeight: "180px",
+      }}
+    />
+  );
 }
