@@ -13,108 +13,155 @@ export default function BookLoader() {
 
     const scene = new THREE.Scene();
 
-    const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
-    camera.position.set(0, 2.6, 4.6);
+    const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 100);
+    camera.position.set(0.3, 2.9, 4.4);
     camera.lookAt(0, 0, 0);
 
     let renderer;
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     } catch {
-      return; // WebGL unavailable, silently skip the 3D loader
+      return;
     }
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     mount.appendChild(renderer.domElement);
 
-    // Lighting
-    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    dirLight.position.set(2, 5, 3);
-    scene.add(dirLight);
-    const fillLight = new THREE.DirectionalLight(0x88aaff, 0.3);
-    fillLight.position.set(-3, 2, -2);
-    scene.add(fillLight);
+    // Lighting — soft key + fill, no harsh shadows
+    scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+    const key = new THREE.DirectionalLight(0xffffff, 1.1);
+    key.position.set(2.5, 5, 3);
+    scene.add(key);
+    const fill = new THREE.DirectionalLight(0xccddff, 0.35);
+    fill.position.set(-3, 1.5, -2);
+    scene.add(fill);
 
-    // Colors chosen to stand out against a dark (gray-950) background
+    // Soft radial "contact shadow" under the book — a plane with a
+    // canvas-generated radial gradient texture, faked without extra deps.
+    const shadowCanvas = document.createElement("canvas");
+    shadowCanvas.width = 256;
+    shadowCanvas.height = 256;
+    const ctx = shadowCanvas.getContext("2d");
+    const gradient = ctx.createRadialGradient(128, 128, 10, 128, 128, 128);
+    gradient.addColorStop(0, "rgba(0,0,0,0.35)");
+    gradient.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 256, 256);
+    const shadowTexture = new THREE.CanvasTexture(shadowCanvas);
+    const shadowMat = new THREE.MeshBasicMaterial({
+      map: shadowTexture,
+      transparent: true,
+      depthWrite: false,
+    });
+    const shadowPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.6, 2.6),
+      shadowMat
+    );
+    shadowPlane.rotation.x = -Math.PI / 2;
+    shadowPlane.position.y = -0.02;
+    scene.add(shadowPlane);
+
+    // Brand-matched colors: white cover, warm off-white pages, subtle gray accent
     const coverMaterial = new THREE.MeshStandardMaterial({
-      color: 0x4f7cff, // bright blue cover
-      roughness: 0.4,
-      metalness: 0.15,
+      color: 0xffffff,
+      roughness: 0.35,
+      metalness: 0.05,
     });
     const spineMaterial = new THREE.MeshStandardMaterial({
-      color: 0x3a5fd9,
-      roughness: 0.4,
+      color: 0xe5e7eb,
+      roughness: 0.5,
     });
     const pageMaterial = new THREE.MeshStandardMaterial({
-      color: 0xfafaf5,
-      roughness: 0.9,
+      color: 0xf5f5f0,
+      roughness: 0.95,
     });
 
     const bookGroup = new THREE.Group();
     scene.add(bookGroup);
 
-    const BOOK_W = 1.6;
-    const BOOK_D = 2.1;
+    const BOOK_W = 1.55;
+    const BOOK_D = 2.05;
 
-    // Back cover — flat base, does not move
+    // Back cover — static base
     const backCover = new THREE.Mesh(
-      new THREE.BoxGeometry(BOOK_W, 0.04, BOOK_D),
+      new THREE.BoxGeometry(BOOK_W, 0.035, BOOK_D),
       coverMaterial
     );
     bookGroup.add(backCover);
 
-    // Spine — thin bar along the hinge edge
+    // Spine
     const spine = new THREE.Mesh(
-      new THREE.BoxGeometry(BOOK_W, 0.22, 0.06),
+      new THREE.BoxGeometry(BOOK_W, 0.24, 0.05),
       spineMaterial
     );
-    spine.position.set(0, 0.09, -BOOK_D / 2);
+    spine.position.set(0, 0.1, -BOOK_D / 2);
     bookGroup.add(spine);
 
-    // Page block — sits on the back cover
-    const pages = new THREE.Mesh(
-      new THREE.BoxGeometry(BOOK_W - 0.08, 0.16, BOOK_D - 0.08),
-      pageMaterial
-    );
-    pages.position.set(0, 0.1, 0);
-    bookGroup.add(pages);
+    // Page stack — several thin individual sheets instead of one solid
+    // block, each hinging open with a slight stagger for a fanning look.
+    const PAGE_COUNT = 5;
+    const pageHinges = [];
+    for (let i = 0; i < PAGE_COUNT; i++) {
+      const hinge = new THREE.Group();
+      const yOffset = 0.03 + i * 0.028;
+      hinge.position.set(0, yOffset, -BOOK_D / 2 + 0.02);
+      bookGroup.add(hinge);
 
-    // Front cover — pivots open/closed around the spine edge (back of the book)
-    const hinge = new THREE.Group();
-    hinge.position.set(0, 0.2, -BOOK_D / 2);
-    bookGroup.add(hinge);
+      const pageMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(BOOK_W - 0.1, 0.02, BOOK_D - 0.06),
+        pageMaterial
+      );
+      pageMesh.position.set(0, 0, (BOOK_D - 0.06) / 2);
+      hinge.add(pageMesh);
+
+      pageHinges.push({ hinge, phase: i * 0.12, speed: 0.85 + i * 0.03 });
+    }
+
+    // Front cover — outermost hinge, opens last/widest
+    const coverHinge = new THREE.Group();
+    coverHinge.position.set(0, 0.03 + PAGE_COUNT * 0.028 + 0.02, -BOOK_D / 2);
+    bookGroup.add(coverHinge);
 
     const frontCover = new THREE.Mesh(
-      new THREE.BoxGeometry(BOOK_W, 0.04, BOOK_D),
+      new THREE.BoxGeometry(BOOK_W, 0.035, BOOK_D),
       coverMaterial
     );
-    // Shift the mesh forward by half its depth so it hinges from its back edge
     frontCover.position.set(0, 0, BOOK_D / 2);
-    hinge.add(frontCover);
+    coverHinge.add(frontCover);
 
-    bookGroup.rotation.x = -0.35;
+    bookGroup.rotation.x = -0.32;
 
     let frameId;
     const clock = new THREE.Clock();
+
+    function smoothstep(x) {
+      const c = Math.min(Math.max(x, 0), 1);
+      return c * c * (3 - 2 * c);
+    }
 
     function animate() {
       frameId = requestAnimationFrame(animate);
       const t = clock.getElapsedTime();
 
-      // Ease between mostly-closed and mostly-open
-      const cycle = (Math.sin(t * 0.9) + 1) / 2;
-      const eased = cycle * cycle * (3 - 2 * cycle); // smoothstep
-      hinge.rotation.x = THREE.MathUtils.lerp(-0.1, -Math.PI + 0.25, eased);
+      const cycle = (Math.sin(t * 0.75) + 1) / 2;
+      const eased = smoothstep(cycle);
+      const coverAngle = THREE.MathUtils.lerp(-0.08, -Math.PI + 0.2, eased);
+      coverHinge.rotation.x = coverAngle;
 
-      bookGroup.rotation.y = Math.sin(t * 0.35) * 0.25;
+      // Each page follows the cover with a slight phase/speed offset so
+      // they appear to fan open in sequence rather than as one rigid block.
+      pageHinges.forEach(({ hinge, phase, speed }) => {
+        const pCycle = (Math.sin(t * 0.75 * speed + phase) + 1) / 2;
+        const pEased = smoothstep(pCycle);
+        hinge.rotation.x = THREE.MathUtils.lerp(-0.05, -Math.PI + 0.4, pEased);
+      });
+
+      bookGroup.rotation.y = Math.sin(t * 0.3) * 0.22;
 
       renderer.render(scene, camera);
     }
     animate();
 
-    // Keep the canvas correctly sized even if the container's dimensions
-    // weren't finalized at mount time (flex/animation layouts can do this).
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const w = entry.contentRect.width;
@@ -137,11 +184,16 @@ export default function BookLoader() {
       }
       backCover.geometry.dispose();
       spine.geometry.dispose();
-      pages.geometry.dispose();
       frontCover.geometry.dispose();
+      shadowPlane.geometry.dispose();
+      pageHinges.forEach(({ hinge }) => {
+        hinge.children.forEach((child) => child.geometry?.dispose());
+      });
       coverMaterial.dispose();
       spineMaterial.dispose();
       pageMaterial.dispose();
+      shadowMat.dispose();
+      shadowTexture.dispose();
       renderer.dispose();
     };
   }, []);
