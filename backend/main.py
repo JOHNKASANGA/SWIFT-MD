@@ -310,7 +310,6 @@ def generate_question_bank(request: QuestionBankRequest):
 @app.post("/quiz")
 def get_quiz(request: CourseQuizRequest):
     result = supabase.table("question_banks").select("*").eq("course_code", request.course_code).eq("question_type", request.question_type).execute()
-
     if result.data:
         all_questions = result.data[0]["questions"]
         if request.section:
@@ -327,30 +326,15 @@ def get_quiz(request: CourseQuizRequest):
             "bank_size": len(all_questions)
         }
 
-    materials = supabase.table("materials").select("*").eq("course_code", request.course_code).execute()
-    if not materials.data:
-        raise HTTPException(status_code=404, detail="No materials found for this course")
-
-    all_text = ""
-    for material in materials.data[:3]:
-        text = get_material_text(material)
-        if text:
-            all_text += f"\n\n{text}"
-    all_text = all_text[:8000]
-
-    if not all_text.strip():
-        raise HTTPException(status_code=400, detail="Could not extract text from materials. Generate a question bank first.")
-
-    questions = generate_questions_from_chunk(all_text, request.question_type, request.num_questions, request.course_code)
-    if not questions:
-        raise HTTPException(status_code=500, detail="Failed to generate questions. Please try again.")
-
-    return {
-        "course_code": request.course_code,
-        "question_type": request.question_type,
-        "questions": questions[:request.num_questions],
-        "from_bank": False
-    }
+    # Live generation fallback removed — it was pulling from unfiltered
+    # raw text (including textbook prefaces/front-matter) and producing
+    # low-quality, irrelevant questions. /quiz now only serves from a
+    # properly curated question bank. If no bank exists yet, an error
+    # is returned instead of generating live.
+    raise HTTPException(
+        status_code=404,
+        detail=f"No {request.question_type} question bank exists yet for {request.course_code}. Live generation has been disabled to avoid low-quality questions."
+    )
 
 
 @app.post("/generate-theory-question")
