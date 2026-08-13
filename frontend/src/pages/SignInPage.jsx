@@ -18,12 +18,14 @@ export default function SignInPage() {
   }
 
   async function handleGoogleSignIn() {
-    const { error } = await supabase.auth.signInWithOAuth({
+    console.log("Starting Google sign in...");
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: "https://swift-md.vercel.app/home",
       },
     });
+    console.log("OAuth response:", { data, error });
     if (error) setError(error.message);
   }
 
