@@ -158,7 +158,6 @@ export default function TestPage() {
 }
 
 // ─── MCQ Quiz ────────────────────────────────────────────────────────────────
-
 function MCQQuiz({
   courseCode,
   onBack,
@@ -169,8 +168,7 @@ function MCQQuiz({
 }) {
   const [questions, setQuestions] = useState(cachedQuestions || []);
   const [current, setCurrent] = useState(0);
-  const [selected, setSelected] = useState(null);
-  const [answers, setAnswers] = useState([]);
+  const [selectedAnswers, setSelectedAnswers] = useState({});
   const [loading, setLoading] = useState(!cachedQuestions);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
@@ -202,27 +200,21 @@ function MCQQuiz({
   }, []);
 
   function handleSelect(option) {
-    if (selected) return;
-    setSelected(option);
+    if (selectedAnswers[current] !== undefined) return;
+    setSelectedAnswers({ ...selectedAnswers, [current]: option });
+  }
+
+  function handleBack() {
+    if (current > 0) {
+      setCurrent(current - 1);
+    }
   }
 
   function handleNext() {
-    const newAnswers = [
-      ...answers,
-      {
-        question: questions[current].question,
-        selected,
-        correct: questions[current].correct_answer,
-        isCorrect: selected === questions[current].correct_answer,
-      },
-    ];
-    setAnswers(newAnswers);
-
     if (current + 1 >= questions.length) {
       setDone(true);
     } else {
       setCurrent(current + 1);
-      setSelected(null);
     }
   }
 
@@ -230,6 +222,12 @@ function MCQQuiz({
   if (error) return <ErrorScreen message={error} onBack={onBack} />;
 
   if (done) {
+    const answers = questions.map((q, i) => ({
+      question: q.question,
+      selected: selectedAnswers[i],
+      correct: q.correct_answer,
+      isCorrect: selectedAnswers[i] === q.correct_answer,
+    }));
     const score = answers.filter((a) => a.isCorrect).length;
     return (
       <ResultsScreen
@@ -243,6 +241,7 @@ function MCQQuiz({
   }
 
   const q = questions[current];
+  const selected = selectedAnswers[current];
 
   return (
     <div className="min-h-screen bg-gray-950 px-6 py-10 max-w-2xl mx-auto">
@@ -301,14 +300,24 @@ function MCQQuiz({
         )}
       </motion.div>
 
-      {selected && (
-        <button
-          onClick={handleNext}
-          className="w-full bg-white text-gray-950 font-black py-3 rounded-xl hover:bg-gray-200 transition-colors"
-        >
-          {current + 1 >= questions.length ? "See Results" : "Next Question"}
-        </button>
-      )}
+      <div className="flex gap-3">
+        {current > 0 && (
+          <button
+            onClick={handleBack}
+            className="flex-1 bg-gray-900 border border-gray-800 text-white font-black py-3 rounded-xl hover:border-gray-600 transition-colors"
+          >
+            Back
+          </button>
+        )}
+        {selected && (
+          <button
+            onClick={handleNext}
+            className="flex-1 bg-white text-gray-950 font-black py-3 rounded-xl hover:bg-gray-200 transition-colors"
+          >
+            {current + 1 >= questions.length ? "See Results" : "Next"}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
