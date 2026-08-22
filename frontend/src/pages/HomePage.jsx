@@ -138,6 +138,16 @@ export default function HomePage() {
               Second year courses and materials
             </p>
           </button>
+
+          <button
+            onClick={() => navigate("/level/300")}
+            className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-left hover:border-gray-600 transition-colors"
+          >
+            <p className="text-white font-black text-2xl mb-1">300 Level</p>
+            <p className="text-gray-500 text-sm">
+              Third year courses and materials
+            </p>
+          </button>
         </div>
       </motion.div>
     </div>
