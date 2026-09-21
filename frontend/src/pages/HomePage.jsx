@@ -1,13 +1,33 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
 import { supabase } from "../lib/supabase";
-import AnimatedBackground from "../components/AnimatedBackground";
+import AppShell from "../components/AppShell";
+import StudyDeck from "../components/StudyDeck";
+
+const quickActions = [
+  {
+    title: "Find a course",
+    detail: "Browse your level and open course materials in one place.",
+    action: "Open library",
+    to: "/level/100",
+  },
+  {
+    title: "Practice properly",
+    detail: "Use curated MCQ and fill-in-the-blank banks where available.",
+    action: "Choose a course",
+    to: "/level/100",
+  },
+  {
+    title: "Calculate your CGPA",
+    detail: "Build from your first semester or continue from your current record.",
+    action: "Open calculator",
+    to: "/cgpa",
+  },
+];
 
 export default function HomePage() {
   const navigate = useNavigate();
   const [greeting, setGreeting] = useState("");
-  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const initialized = useRef(false);
 
@@ -17,7 +37,7 @@ export default function HomePage() {
         currentUser.user_metadata?.full_name || currentUser.email.split("@")[0];
 
       try {
-        const res = await fetch(
+        const response = await fetch(
           `${import.meta.env.VITE_BACKEND_URL}/generate-greeting`,
           {
             method: "POST",
@@ -25,10 +45,13 @@ export default function HomePage() {
             body: JSON.stringify({ username }),
           }
         );
-        const data = await res.json();
+
+        if (!response.ok) throw new Error("Greeting request failed");
+
+        const data = await response.json();
         setGreeting(data.greeting.replace(/^#+\s*/, ""));
       } catch {
-        setGreeting(`Welcome back, ${username}. Let's get to work.`);
+        setGreeting(`Welcome back, ${username}. Pick up where you left off.`);
       } finally {
         setLoading(false);
       }
@@ -41,19 +64,21 @@ export default function HomePage() {
             navigate("/signin");
             return;
           }
+
           if (!initialized.current) {
             initialized.current = true;
-            setUser(session.user);
             loadGreeting(session.user);
           }
-        } else if (event === "SIGNED_OUT") {
+        }
+
+        if (event === "SIGNED_OUT") {
           navigate("/signin");
         }
       }
     );
 
     return () => listener.subscription.unsubscribe();
-  }, []);
+  }, [navigate]);
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -62,106 +87,49 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <p className="text-gray-500 text-sm font-bold animate-pulse">
-          Loading...
-        </p>
+      <div className="swift-loading-screen">
+        <span className="swift-loading-mark">S</span>
+        <p>Preparing your study space...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 px-6 py-10 max-w-2xl mx-auto">
-      <AnimatedBackground />
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="flex items-center justify-between mb-12 "
-      >
-        <div className="flex items-center gap-3">
-          <div className="bg-white rounded-xl w-9 h-9 flex items-center justify-center">
-            <span className="text-gray-950 font-black text-sm">S</span>
+    <AppShell onSignOut={handleSignOut}>
+      <div className="swift-home-page">
+        <section className="swift-home-intro">
+          <p className="swift-eyebrow">Swift for UNILAG Engineering</p>
+          <h1>Study with a clearer system.</h1>
+          <p className="swift-greeting">{greeting}</p>
+        </section>
+
+        <StudyDeck />
+
+        <section className="swift-quick-actions" id="practice">
+          <div className="section-heading">
+            <div>
+              <p className="swift-eyebrow">Start here</p>
+              <h2>Made for the work in front of you.</h2>
+            </div>
+            <p>
+              Materials, curated practice, and academic tools without making
+              you hunt through folders.
+            </p>
           </div>
-          <span className="text-white font-black text-lg">Swift</span>
-        </div>
-        <button
-          onClick={handleSignOut}
-          className="text-gray-500 hover:text-white text-sm font-bold transition-colors"
-        >
-          Sign out
-        </button>
-      </motion.div>
 
-      {/* Greeting */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
-        className="mb-12"
-      >
-        <p className="text-gray-500 text-sm font-bold uppercase tracking-widest mb-2">
-          Good to see you
-        </p>
-        <p className="text-white text-xl font-bold leading-relaxed">
-          {greeting}
-        </p>
-      </motion.div>
-
-      {/* Level cards */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.4 }}
-      >
-        <p className="text-gray-500 text-sm font-bold uppercase tracking-widest mb-4">
-          Select your level
-        </p>
-        <div className="flex flex-col gap-4">
-          <button
-            onClick={() => navigate("/level/100")}
-            className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-left hover:border-gray-600 transition-colors"
-          >
-            <p className="text-white font-black text-2xl mb-1">100 Level</p>
-            <p className="text-gray-500 text-sm">
-              First year courses and materials
-            </p>
-          </button>
-
-          <button
-            onClick={() => navigate("/level/200")}
-            className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-left hover:border-gray-600 transition-colors"
-          >
-            <p className="text-white font-black text-2xl mb-1">200 Level</p>
-            <p className="text-gray-500 text-sm">
-              Second year courses and materials
-            </p>
-          </button>
-
-          <button
-            onClick={() => navigate("/level/300")}
-            className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-left hover:border-gray-600 transition-colors"
-          >
-            <p className="text-white font-black text-2xl mb-1">300 Level</p>
-            <p className="text-gray-500 text-sm">
-              Third year courses and materials
-            </p>
-          </button>
-
-          <button
-            onClick={() => navigate("/cgpa")}
-            className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-left hover:border-gray-600 transition-colors"
-          >
-            <p className="text-white font-black text-2xl mb-1">
-              CGPA Calculator
-            </p>
-            <p className="text-gray-500 text-sm">
-              Work out your semester GPA or cumulative CGPA
-            </p>
-          </button>
-        </div>
-      </motion.div>
-    </div>
+          <div className="quick-action-grid">
+            {quickActions.map((item) => (
+              <article key={item.title} className="quick-action">
+                <h3>{item.title}</h3>
+                <p>{item.detail}</p>
+                <button type="button" onClick={() => navigate(item.to)}>
+                  {item.action} <span aria-hidden="true">→</span>
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
+    </AppShell>
   );
 }

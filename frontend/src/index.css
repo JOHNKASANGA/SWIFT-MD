@@ -1,4 +1,523 @@
 @import "tailwindcss";
+
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  color: #171717;
+  background: #fafaf8;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: #fafaf8;
+  scroll-behavior: smooth;
+}
+
 body {
-  background-color: #030712;
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background:
+    linear-gradient(rgba(23, 23, 23, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(23, 23, 23, 0.035) 1px, transparent 1px),
+    #fafaf8;
+  background-size: 32px 32px;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.swift-app-shell {
+  min-height: 100vh;
+}
+
+.swift-header {
+  width: min(1180px, calc(100% - 40px));
+  min-height: 76px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  border-bottom: 1px solid #dededa;
+}
+
+.swift-brand {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #171717;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.swift-brand-mark,
+.swift-loading-mark {
+  width: 31px;
+  height: 31px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #171717;
+  color: #ffffff;
+  font-size: 0.86rem;
+  font-weight: 900;
+  letter-spacing: -0.06em;
+}
+
+.swift-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.swift-nav-link,
+.swift-account-button {
+  border: 0;
+  background: transparent;
+  color: #666662;
+  font-size: 0.87rem;
+  font-weight: 650;
+  text-decoration: none;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.swift-nav-link {
+  padding: 9px 12px;
+  border-radius: 8px;
+}
+
+.swift-nav-link:hover,
+.swift-nav-link.is-active {
+  background: #f0f0ec;
+  color: #171717;
+}
+
+.swift-account-button {
+  justify-self: end;
+  padding: 9px 0;
+}
+
+.swift-account-button:hover {
+  color: #171717;
+}
+
+.swift-home-page {
+  width: min(1180px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 80px 0 96px;
+}
+
+.swift-home-intro {
+  max-width: 720px;
+  margin-bottom: 54px;
+}
+
+.swift-eyebrow {
+  margin: 0 0 13px;
+  color: #315bea;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.swift-home-intro h1,
+.study-deck h2,
+.section-heading h2 {
+  margin: 0;
+  color: #171717;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 500;
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+}
+
+.swift-home-intro h1 {
+  max-width: 640px;
+  font-size: clamp(3.2rem, 7vw, 6.4rem);
+}
+
+.swift-greeting {
+  max-width: 600px;
+  margin: 25px 0 0;
+  color: #656560;
+  font-size: 1.05rem;
+  line-height: 1.65;
+}
+
+.study-deck {
+  min-height: 460px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(370px, 0.9fr);
+  gap: 42px;
+  align-items: center;
+  padding: 48px;
+  border: 1px solid #dededa;
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 18px 50px rgba(22, 22, 19, 0.055);
+}
+
+.study-deck-copy {
+  max-width: 490px;
+}
+
+.study-deck h2 {
+  max-width: 430px;
+  font-size: clamp(2.5rem, 4vw, 4.2rem);
+}
+
+.study-deck-description {
+  max-width: 450px;
+  margin: 20px 0 0;
+  color: #656560;
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.level-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 30px 0 18px;
+}
+
+.level-selector-button {
+  padding: 10px 14px;
+  border: 1px solid #dededa;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #595954;
+  font-size: 0.84rem;
+  font-weight: 750;
+  transition: transform 180ms ease, border-color 180ms ease,
+    background 180ms ease, color 180ms ease;
+}
+
+.level-selector-button:hover {
+  border-color: #a9a9a3;
+  color: #171717;
+}
+
+.level-selector-button.is-selected {
+  border-color: #315bea;
+  background: #315bea;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.swift-primary-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 25px;
+  padding: 13px 16px;
+  border: 1px solid #171717;
+  border-radius: 9px;
+  background: #171717;
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 800;
+  transition: transform 180ms ease, background 180ms ease;
+}
+
+.swift-primary-button:hover {
+  background: #315bea;
+  border-color: #315bea;
+  transform: translateY(-2px);
+}
+
+.deck-stage {
+  min-height: 330px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+.deck-stack {
+  position: relative;
+  width: 320px;
+  height: 235px;
+}
+
+.deck-card {
+  position: absolute;
+  width: 100%;
+  min-height: 205px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 28px;
+  border: 1px solid #cbcbbf;
+  border-radius: 15px;
+  background: #f1f1ec;
+  color: #171717;
+  text-align: left;
+  box-shadow: 0 14px 26px rgba(23, 23, 23, 0.09);
+  transition: transform 430ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 430ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background 300ms ease, border-color 300ms ease;
+}
+
+.deck-card-1 {
+  transform: translate(-20px, 18px) rotate(-7deg);
+}
+
+.deck-card-2 {
+  transform: translate(8px, 8px) rotate(3deg);
+}
+
+.deck-card-3 {
+  transform: translate(24px, 0) rotate(9deg);
+}
+
+.deck-card-kicker {
+  color: #315bea;
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.deck-card strong {
+  max-width: 200px;
+  margin-top: auto;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 2rem;
+  font-weight: 500;
+  letter-spacing: -0.05em;
+  line-height: 0.98;
+}
+
+.deck-card > span:last-child {
+  max-width: 225px;
+  margin-top: 13px;
+  color: #656560;
+  font-size: 0.79rem;
+  line-height: 1.45;
+}
+
+.deck-card.is-selected {
+  z-index: 5;
+  border-color: #315bea;
+  background: #ffffff;
+  box-shadow: 0 26px 40px rgba(49, 91, 234, 0.2);
+}
+
+.deck-stack.level-100 .deck-card-1.is-selected {
+  transform: translate(-6px, -11px) rotate(-2deg);
+}
+
+.deck-stack.level-200 .deck-card-2.is-selected {
+  transform: translate(0, -18px) rotate(0);
+}
+
+.deck-stack.level-300 .deck-card-3.is-selected {
+  transform: translate(7px, -13px) rotate(2deg);
+}
+
+.deck-caption {
+  margin: 15px 0 0;
+  color: #777771;
+  font-size: 0.76rem;
+}
+
+.deck-caption strong {
+  color: #171717;
+}
+
+.swift-quick-actions {
+  margin-top: 100px;
+}
+
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 40px;
+  align-items: end;
+  padding-bottom: 25px;
+  border-bottom: 1px solid #dededa;
+}
+
+.section-heading h2 {
+  font-size: clamp(2.2rem, 4vw, 3.7rem);
+}
+
+.section-heading > p {
+  max-width: 345px;
+  margin: 0;
+  color: #656560;
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+
+.quick-action-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-bottom: 1px solid #dededa;
+}
+
+.quick-action {
+  min-height: 245px;
+  padding: 30px 28px 28px;
+  border-right: 1px solid #dededa;
+  transition: background 180ms ease;
+}
+
+.quick-action:first-child {
+  padding-left: 0;
+}
+
+.quick-action:last-child {
+  border-right: 0;
+}
+
+.quick-action:hover {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.quick-action h3 {
+  margin: 0;
+  color: #171717;
+  font-size: 1.08rem;
+  letter-spacing: -0.03em;
+}
+
+.quick-action p {
+  max-width: 275px;
+  margin: 13px 0 31px;
+  color: #656560;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.quick-action button {
+  display: inline-flex;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #315bea;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.quick-action button:hover {
+  color: #171717;
+}
+
+.swift-loading-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
+  background: #fafaf8;
+  color: #656560;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .swift-header {
+    width: min(100% - 28px, 1180px);
+    grid-template-columns: 1fr auto;
+  }
+
+  .swift-nav {
+    display: none;
+  }
+
+  .swift-home-page {
+    width: min(100% - 28px, 1180px);
+    padding: 48px 0 65px;
+  }
+
+  .swift-home-intro {
+    margin-bottom: 36px;
+  }
+
+  .study-deck {
+    grid-template-columns: 1fr;
+    gap: 34px;
+    padding: 29px 22px 27px;
+    border-radius: 16px;
+  }
+
+  .deck-stage {
+    min-height: 285px;
+  }
+
+  .deck-stack {
+    width: min(280px, calc(100vw - 78px));
+    height: 215px;
+  }
+
+  .deck-card {
+    min-height: 185px;
+    padding: 23px;
+  }
+
+  .deck-card strong {
+    font-size: 1.7rem;
+  }
+
+  .quick-action-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .section-heading {
+    display: block;
+  }
+
+  .section-heading > p {
+    margin-top: 16px;
+  }
+
+  .quick-action,
+  .quick-action:first-child {
+    min-height: auto;
+    padding: 24px 0;
+    border-right: 0;
+    border-bottom: 1px solid #dededa;
+  }
+
+  .quick-action:last-child {
+    border-bottom: 0;
+  }
+
+  .quick-action p {
+    margin-bottom: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
