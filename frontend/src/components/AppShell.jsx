@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 
 const navigationItems = [
   { label: "Library", to: "/home" },
-  { label: "Practice", to: "/home#practice" },
+  { label: "Practice", to: "/practice" },
   { label: "CGPA", to: "/cgpa" },
 ];
 
@@ -28,7 +28,7 @@ export default function AppShell({ children, onSignOut }) {
               key={item.label}
               to={item.to}
               className={({ isActive }) =>
-                `swift-nav-link ${isActive && item.to === "/home" ? "is-active" : ""}`
+                `swift-nav-link ${isActive ? "is-active" : ""}`
               }
             >
               {item.label}

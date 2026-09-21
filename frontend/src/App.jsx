@@ -11,13 +11,10 @@ import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import ViewerPage from "./pages/ViewerPage";
 import CGPACalculatorPage from "./pages/CGPACalculatorPage";
+import PracticePage from "./pages/PracticePage";
 
 export default function App() {
   useEffect(() => {
-    // Strip any leftover OAuth hash fragment from the URL after Supabase
-    // has had a chance to process it. Without this, a stale "#access_token=..."
-    // hash gets re-parsed as a fresh (now expired) OAuth callback on every
-    // page load, which breaks session persistence.
     if (window.location.hash && window.location.hash.length > 1) {
       const timeout = setTimeout(() => {
         window.history.replaceState(
@@ -26,6 +23,7 @@ export default function App() {
           window.location.pathname + window.location.search
         );
       }, 500);
+
       return () => clearTimeout(timeout);
     }
   }, []);
@@ -37,6 +35,7 @@ export default function App() {
         <Route path="/signup" element={<SignUpPage />} />
         <Route path="/signin" element={<SignInPage />} />
         <Route path="/home" element={<HomePage />} />
+        <Route path="/practice" element={<PracticePage />} />
         <Route path="/level/:level" element={<LevelPage />} />
         <Route path="/course/:id" element={<CoursePage />} />
         <Route path="/test/:courseCode" element={<TestPage />} />

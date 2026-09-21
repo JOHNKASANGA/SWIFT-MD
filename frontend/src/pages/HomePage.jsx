@@ -14,8 +14,8 @@ const quickActions = [
   {
     title: "Practice properly",
     detail: "Use curated MCQ and fill-in-the-blank banks where available.",
-    action: "Choose a course",
-    to: "/level/100",
+    action: "Open practice",
+    to: "/practice",
   },
   {
     title: "Calculate your CGPA",
@@ -105,7 +105,7 @@ export default function HomePage() {
 
         <StudyDeck />
 
-        <section className="swift-quick-actions" id="practice">
+        <section className="swift-quick-actions">
           <div className="section-heading">
             <div>
               <p className="swift-eyebrow">Start here</p>

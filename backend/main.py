@@ -435,3 +435,59 @@ Course material for reference:
         "course_code": request.course_code,
         "grading": grade_data
     }
+
+@app.get("/practice-courses")
+def get_practice_courses():
+    bank_result = supabase.table("question_banks").select(
+        "course_code, question_type, questions"
+    ).execute()
+
+    if not bank_result.data:
+        return {"courses": []}
+
+    course_codes = sorted(
+        {bank["course_code"] for bank in bank_result.data if bank.get("course_code")}
+    )
+
+    course_result = supabase.table("courses").select(
+        "id, code, title, level, description"
+    ).in_("code", course_codes).execute()
+
+    course_by_code = {
+        course["code"]: course for course in (course_result.data or [])
+    }
+
+    grouped = {}
+    for bank in bank_result.data:
+        course_code = bank.get("course_code")
+        if not course_code:
+            continue
+
+        if course_code not in grouped:
+            course = course_by_code.get(course_code, {})
+            grouped[course_code] = {
+                "id": course.get("id"),
+                "code": course_code,
+                "title": course.get("title", course_code),
+                "level": course.get("level"),
+                "description": course.get("description"),
+                "banks": [],
+            }
+
+        questions = bank.get("questions") or []
+        grouped[course_code]["banks"].append(
+            {
+                "type": bank.get("question_type"),
+                "question_count": len(questions),
+            }
+        )
+
+    practice_courses = sorted(
+        grouped.values(),
+        key=lambda course: (
+            course["level"] if course["level"] is not None else 999,
+            course["code"],
+        ),
+    )
+
+    return {"courses": practice_courses}

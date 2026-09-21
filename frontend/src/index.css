@@ -598,3 +598,193 @@ button {
     animation-iteration-count: 1 !important;
   }
 }
+
+.swift-page {
+  width: min(1180px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 56px 0 96px;
+}
+
+.practice-page {
+  max-width: 980px;
+}
+
+.practice-intro {
+  max-width: 710px;
+  margin-bottom: 42px;
+}
+
+.practice-intro h1 {
+  margin: 0;
+  color: #171717;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(3rem, 6vw, 5.65rem);
+  font-weight: 500;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.practice-intro > p:last-child {
+  max-width: 590px;
+  margin: 21px 0 0;
+  color: #656560;
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.practice-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #dededa;
+}
+
+.practice-filter button {
+  padding: 9px 13px;
+  border: 1px solid #dededa;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #656560;
+  font-size: 0.82rem;
+  font-weight: 750;
+  transition: color 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+
+.practice-filter button:hover {
+  border-color: #a9a9a3;
+  color: #171717;
+}
+
+.practice-filter button.is-selected {
+  border-color: #171717;
+  background: #171717;
+  color: #ffffff;
+}
+
+.practice-course-list {
+  border-bottom: 1px solid #dededa;
+}
+
+.practice-course-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 28px;
+  align-items: center;
+  padding: 28px 0;
+  border-bottom: 1px solid #dededa;
+}
+
+.practice-course-row:last-child {
+  border-bottom: 0;
+}
+
+.practice-course-code {
+  margin: 0 0 8px;
+  color: #315bea;
+  font-size: 0.73rem;
+  font-weight: 850;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.practice-course-main h2 {
+  margin: 0;
+  color: #171717;
+  font-size: 1.15rem;
+  letter-spacing: -0.035em;
+}
+
+.practice-mode-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 14px;
+  margin-top: 12px;
+}
+
+.practice-mode-list span {
+  color: #656560;
+  font-size: 0.8rem;
+}
+
+.practice-start-button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  gap: 14px;
+  align-items: center;
+  padding: 11px 14px;
+  border: 1px solid #dededa;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #171717;
+  font-size: 0.84rem;
+  font-weight: 800;
+  transition: transform 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.practice-start-button:hover {
+  border-color: #315bea;
+  color: #315bea;
+  transform: translateY(-1px);
+}
+
+.practice-status,
+.practice-empty {
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
+  margin: 0;
+  color: #656560;
+  text-align: center;
+  font-size: 0.92rem;
+}
+
+.practice-status.is-error {
+  color: #9a3f3f;
+}
+
+.practice-status button {
+  padding: 10px 13px;
+  border: 1px solid #dededa;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #171717;
+  font-size: 0.83rem;
+  font-weight: 800;
+}
+
+@media (max-width: 760px) {
+  .swift-page {
+    width: min(100% - 28px, 1180px);
+    padding: 38px 0 65px;
+  }
+
+  .practice-intro {
+    margin-bottom: 30px;
+  }
+
+  .practice-intro h1 {
+    font-size: clamp(2.85rem, 14vw, 4.2rem);
+    line-height: 0.99;
+  }
+
+  .practice-intro > p:last-child {
+    margin-top: 17px;
+    font-size: 0.95rem;
+  }
+
+  .practice-course-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 19px;
+    padding: 24px 0;
+  }
+
+  .practice-start-button {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
