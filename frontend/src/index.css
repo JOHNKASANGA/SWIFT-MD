@@ -1685,3 +1685,655 @@ button {
     width: min(100% - 28px, 900px);
   }
 }
+
+.cgpa-page {
+  max-width: 980px;
+}
+
+.cgpa-intro {
+  max-width: 700px;
+  margin-top: 38px;
+}
+
+.cgpa-intro h1,
+.cgpa-mode-option strong,
+.cgpa-guide-card h2,
+.cgpa-workspace-heading h2,
+.cgpa-section-heading h3 {
+  margin: 0;
+  color: #171717;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 500;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.cgpa-intro h1 {
+  font-size: clamp(3.1rem, 6vw, 5.8rem);
+}
+
+.cgpa-intro > p:last-child {
+  max-width: 580px;
+  margin: 20px 0 0;
+  color: #656560;
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.cgpa-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  margin-top: 48px;
+  border-top: 1px solid #dededa;
+  border-bottom: 1px solid #dededa;
+}
+
+.cgpa-mode-option {
+  min-height: 310px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 31px 30px;
+  border: 0;
+  border-right: 1px solid #dededa;
+  background: transparent;
+  color: #171717;
+  text-align: left;
+  transition: background 160ms ease;
+}
+
+.cgpa-mode-option:last-child {
+  border-right: 0;
+}
+
+.cgpa-mode-option:hover {
+  background: #ffffff;
+}
+
+.cgpa-mode-number {
+  color: #315bea;
+  font-size: 0.74rem;
+  font-weight: 850;
+  letter-spacing: 0.1em;
+}
+
+.cgpa-mode-option strong {
+  max-width: 300px;
+  margin-top: auto;
+  font-size: clamp(2rem, 3vw, 2.85rem);
+}
+
+.cgpa-mode-option p {
+  max-width: 330px;
+  margin: 13px 0 23px;
+  color: #656560;
+  font-size: 0.9rem;
+  line-height: 1.57;
+}
+
+.cgpa-mode-option > span:last-child {
+  color: #315bea;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.cgpa-guide-card {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(260px, 0.8fr);
+  gap: 42px;
+  margin-top: 65px;
+  padding: 31px 0;
+  border-top: 1px solid #dededa;
+  border-bottom: 1px solid #dededa;
+}
+
+.cgpa-guide-card h2 {
+  max-width: 360px;
+  font-size: clamp(2rem, 3.2vw, 3rem);
+}
+
+.cgpa-guide-card > div > p:not(.swift-eyebrow) {
+  margin: 0;
+  color: #656560;
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+.cgpa-guide-card button,
+.cgpa-reset-section button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #315bea;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.cgpa-guide-card button {
+  margin-top: 16px;
+}
+
+.cgpa-guide-example {
+  grid-column: 1 / -1;
+  padding: 17px 18px;
+  border-left: 2px solid #315bea;
+  background: #f1f4ff;
+}
+
+.cgpa-guide-example p {
+  margin: 0;
+  color: #3d3d39;
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.cgpa-workspace {
+  margin-top: 48px;
+}
+
+.cgpa-workspace-heading,
+.cgpa-section-heading,
+.cgpa-course-materials-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 28px;
+  align-items: end;
+  padding-bottom: 21px;
+  border-bottom: 1px solid #dededa;
+}
+
+.cgpa-workspace-heading h2 {
+  font-size: clamp(2.35rem, 4vw, 3.8rem);
+}
+
+.cgpa-workspace-heading > p {
+  margin: 0;
+  color: #777771;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cgpa-record-card {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 23px;
+  padding: 25px 0;
+  border-bottom: 1px solid #dededa;
+}
+
+.cgpa-record-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #595954;
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.cgpa-record-card input,
+.cgpa-semester-card-header input,
+.cgpa-course-row input,
+.cgpa-course-row select {
+  outline: 0;
+  background: transparent;
+  color: #171717;
+}
+
+.cgpa-record-card input {
+  width: 100%;
+  padding: 11px 0;
+  border: 0;
+  border-bottom: 1px solid #c7c7c0;
+  font-size: 1rem;
+}
+
+.cgpa-record-card input:focus,
+.cgpa-semester-card-header input:focus,
+.cgpa-course-row input:focus,
+.cgpa-course-row select:focus {
+  border-color: #315bea;
+}
+
+.cgpa-record-card small {
+  display: block;
+  margin-top: 8px;
+  color: #777771;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.cgpa-semester-section {
+  margin-top: 55px;
+}
+
+.cgpa-section-heading h3 {
+  font-size: clamp(2rem, 3.2vw, 3rem);
+}
+
+.cgpa-section-heading > span {
+  max-width: 265px;
+  color: #777771;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: right;
+}
+
+.cgpa-course-table {
+  border-bottom: 1px solid #dededa;
+}
+
+.cgpa-course-row {
+  display: grid;
+  grid-template-columns: 35px minmax(0, 1fr) 75px 58px 26px;
+  gap: 12px;
+  align-items: center;
+  min-height: 63px;
+  border-bottom: 1px solid #ecece7;
+}
+
+.cgpa-course-row:last-child {
+  border-bottom: 0;
+}
+
+.cgpa-course-index {
+  color: #315bea;
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+}
+
+.cgpa-course-row input,
+.cgpa-course-row select {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  font-size: 0.87rem;
+}
+
+.cgpa-course-row input::placeholder {
+  color: #999993;
+}
+
+.cgpa-course-row select {
+  font-weight: 800;
+}
+
+.cgpa-remove-button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #999993;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.cgpa-remove-button:hover {
+  background: #fff0ef;
+  color: #a3423c;
+}
+
+.cgpa-remove-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.25;
+}
+
+.cgpa-add-button,
+.cgpa-add-semester-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #315bea;
+  font-size: 0.83rem;
+  font-weight: 800;
+}
+
+.cgpa-add-button {
+  margin-top: 17px;
+}
+
+.cgpa-error {
+  margin: 25px 0 0;
+  color: #9a3f3f;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.cgpa-calculate-button {
+  margin-top: 27px;
+}
+
+.cgpa-continue-results {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
+  margin-top: 33px;
+}
+
+.cgpa-semester-result,
+.cgpa-result-panel {
+  padding: 24px;
+  border: 1px solid #dededa;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.cgpa-semester-result > p,
+.cgpa-result-panel > p {
+  margin: 0;
+  color: #777771;
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.cgpa-semester-result > strong,
+.cgpa-result-panel > strong {
+  display: block;
+  margin-top: 16px;
+  color: #171717;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 3rem;
+  font-weight: 500;
+  letter-spacing: -0.06em;
+  line-height: 1;
+}
+
+.cgpa-semester-result > strong span,
+.cgpa-result-panel > strong span {
+  margin-left: 3px;
+  color: #777771;
+  font-family: Inter, ui-sans-serif, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 750;
+  letter-spacing: normal;
+}
+
+.cgpa-semester-result > small,
+.cgpa-result-panel > small {
+  display: block;
+  margin-top: 9px;
+  color: #777771;
+  font-size: 0.78rem;
+}
+
+.cgpa-classification {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #dededa;
+}
+
+.cgpa-classification span {
+  color: #777771;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.cgpa-classification b {
+  color: #315bea;
+  font-size: 0.82rem;
+}
+
+.cgpa-fresh-note {
+  margin-top: 24px;
+  padding: 16px 18px;
+  border-left: 2px solid #315bea;
+  background: #f1f4ff;
+  color: #4f4f4a;
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.cgpa-semester-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  margin-top: 26px;
+}
+
+.cgpa-semester-card {
+  padding: 24px;
+  border: 1px solid #dededa;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.cgpa-semester-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  padding-bottom: 13px;
+  border-bottom: 1px solid #dededa;
+}
+
+.cgpa-semester-card-header > div {
+  display: flex;
+  flex: 1;
+  gap: 12px;
+  align-items: center;
+}
+
+.cgpa-semester-card-header span {
+  color: #315bea;
+  font-size: 0.75rem;
+  font-weight: 850;
+  letter-spacing: 0.09em;
+}
+
+.cgpa-semester-card-header input {
+  width: 100%;
+  padding: 4px 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  color: #171717;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.cgpa-semester-card-header button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #777771;
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+
+.cgpa-semester-card-header button:hover {
+  color: #a3423c;
+}
+
+.cgpa-semester-card-header button:disabled {
+  cursor: not-allowed;
+  opacity: 0.25;
+}
+
+.cgpa-semester-card-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+}
+
+.cgpa-semester-card-footer p {
+  margin: 17px 0 0;
+  color: #777771;
+  font-size: 0.78rem;
+}
+
+.cgpa-semester-card-footer b {
+  color: #171717;
+}
+
+.cgpa-add-semester-button {
+  width: 100%;
+  margin-top: 22px;
+  padding: 14px;
+  border: 1px dashed #bcbcb5;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.cgpa-add-semester-button:hover {
+  border-color: #315bea;
+}
+
+.cgpa-workspace > .cgpa-result-panel {
+  max-width: 520px;
+  margin-top: 31px;
+}
+
+.cgpa-reset-section {
+  margin-top: 55px;
+  padding-top: 20px;
+  border-top: 1px solid #dededa;
+}
+
+.cgpa-reset-section > button {
+  color: #777771;
+}
+
+.cgpa-reset-section > button:hover {
+  color: #a3423c;
+}
+
+.cgpa-reset-section > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: center;
+}
+
+.cgpa-reset-section p {
+  width: 100%;
+  margin: 0;
+  color: #656560;
+  font-size: 0.84rem;
+}
+
+.cgpa-reset-section > div button:first-of-type {
+  color: #a3423c;
+}
+
+@media (max-width: 760px) {
+  .cgpa-intro {
+    margin-top: 30px;
+  }
+
+  .cgpa-intro h1 {
+    font-size: clamp(2.9rem, 14vw, 4.25rem);
+    line-height: 0.99;
+  }
+
+  .cgpa-intro > p:last-child {
+    margin-top: 17px;
+    font-size: 0.95rem;
+  }
+
+  .cgpa-mode-grid {
+    grid-template-columns: 1fr;
+    margin-top: 34px;
+  }
+
+  .cgpa-mode-option {
+    min-height: 245px;
+    padding: 26px 0;
+    border-right: 0;
+    border-bottom: 1px solid #dededa;
+  }
+
+  .cgpa-mode-option:last-child {
+    border-bottom: 0;
+  }
+
+  .cgpa-mode-option:hover {
+    background: transparent;
+  }
+
+  .cgpa-guide-card,
+  .cgpa-workspace-heading,
+  .cgpa-section-heading,
+  .cgpa-course-materials-heading {
+    display: block;
+  }
+
+  .cgpa-guide-card {
+    gap: 0;
+    margin-top: 48px;
+    padding: 26px 0;
+  }
+
+  .cgpa-guide-card > div:last-of-type {
+    margin-top: 20px;
+  }
+
+  .cgpa-workspace {
+    margin-top: 36px;
+  }
+
+  .cgpa-workspace-heading > p {
+    margin-top: 14px;
+    white-space: normal;
+  }
+
+  .cgpa-record-card {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+
+  .cgpa-semester-section {
+    margin-top: 43px;
+  }
+
+  .cgpa-section-heading > span {
+    display: block;
+    margin-top: 14px;
+    text-align: left;
+  }
+
+  .cgpa-course-row {
+    grid-template-columns: 25px minmax(0, 1fr) 54px 47px 20px;
+    gap: 8px;
+  }
+
+  .cgpa-course-row input,
+  .cgpa-course-row select {
+    font-size: 0.78rem;
+  }
+
+  .cgpa-course-row input::placeholder {
+    color: transparent;
+  }
+
+  .cgpa-continue-results {
+    grid-template-columns: 1fr;
+  }
+
+  .cgpa-semester-card {
+    padding: 20px 16px;
+  }
+
+  .cgpa-semester-card-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .cgpa-semester-card-footer p {
+    margin-top: 0;
+  }
+}

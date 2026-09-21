@@ -1,17 +1,51 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import AnimatedBackground from "../components/AnimatedBackground";
+import AppShell from "../components/AppShell";
+import { supabase } from "../lib/supabase";
 
 const GRADE_POINTS = { A: 5, B: 4, C: 3, D: 2, E: 1, F: 0 };
 const GRADES = ["A", "B", "C", "D", "E", "F"];
+const STORAGE_KEY = "swift-cgpa-draft-v2";
 
-function makeEmptyCourse() {
-  return { id: crypto.randomUUID(), name: "", units: "", grade: "A" };
+function createId() {
+  return crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
 }
 
-function makeEmptySemester(label) {
-  return { id: crypto.randomUUID(), label, courses: [makeEmptyCourse()] };
+function makeEmptyCourse() {
+  return { id: createId(), name: "", units: "", grade: "A" };
+}
+
+function semesterLabel(index) {
+  const labels = [
+    "100L First Semester",
+    "100L Second Semester",
+    "200L First Semester",
+    "200L Second Semester",
+    "300L First Semester",
+    "300L Second Semester",
+  ];
+
+  return labels[index] || `Semester ${index + 1}`;
+}
+
+function makeEmptySemester(index) {
+  return {
+    id: createId(),
+    label: semesterLabel(index),
+    courses: [makeEmptyCourse()],
+  };
+}
+
+function readDraft() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+
+    if (!saved) return null;
+
+    return saved;
+  } catch {
+    return null;
+  }
 }
 
 function classOfDegree(cgpa) {
@@ -23,579 +57,626 @@ function classOfDegree(cgpa) {
 }
 
 function computeSemesterStats(courses) {
-  const valid = courses.filter(
-    (c) => c.units !== "" && !isNaN(c.units) && parseFloat(c.units) > 0
-  );
-  const units = valid.reduce((sum, c) => sum + parseFloat(c.units), 0);
-  const points = valid.reduce(
-    (sum, c) => sum + parseFloat(c.units) * GRADE_POINTS[c.grade],
+  const validCourses = courses.filter((course) => {
+    const units = Number(course.units);
+    return Number.isFinite(units) && units > 0;
+  });
+
+  const units = validCourses.reduce(
+    (sum, course) => sum + Number(course.units),
     0
   );
-  return { units, points, gpa: units > 0 ? points / units : 0 };
+
+  const points = validCourses.reduce(
+    (sum, course) => sum + Number(course.units) * GRADE_POINTS[course.grade],
+    0
+  );
+
+  return {
+    units,
+    points,
+    gpa: units > 0 ? points / units : 0,
+  };
+}
+
+function ResultPanel({ title, cgpa, units, extra }) {
+  return (
+    <div className="cgpa-result-panel">
+      <p>{title}</p>
+      <strong>
+        {cgpa.toFixed(2)}
+        <span>/5.00</span>
+      </strong>
+      <small>{units} total units</small>
+      {extra}
+      <div className="cgpa-classification">
+        <span>Current classification</span>
+        <b>{classOfDegree(cgpa)}</b>
+      </div>
+    </div>
+  );
+}
+
+function CourseRow({ course, index, onChange, onRemove, canRemove }) {
+  return (
+    <div className="cgpa-course-row">
+      <span className="cgpa-course-index">{String(index + 1).padStart(2, "0")}</span>
+
+      <input
+        type="text"
+        value={course.name}
+        onChange={(event) => onChange("name", event.target.value)}
+        placeholder="Course name or code"
+        aria-label={`Course ${index + 1} name`}
+      />
+
+      <input
+        type="number"
+        min="1"
+        inputMode="numeric"
+        value={course.units}
+        onChange={(event) => onChange("units", event.target.value)}
+        placeholder="Units"
+        aria-label={`Course ${index + 1} units`}
+      />
+
+      <select
+        value={course.grade}
+        onChange={(event) => onChange("grade", event.target.value)}
+        aria-label={`Course ${index + 1} grade`}
+      >
+        {GRADES.map((grade) => (
+          <option key={grade} value={grade}>
+            {grade}
+          </option>
+        ))}
+      </select>
+
+      <button
+        type="button"
+        className="cgpa-remove-button"
+        onClick={onRemove}
+        disabled={!canRemove}
+        aria-label={`Remove course ${index + 1}`}
+      >
+        ×
+      </button>
+    </div>
+  );
 }
 
 export default function CGPACalculatorPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState(null); // "fresh" | "continue" | null
-  const [showHelp, setShowHelp] = useState(false);
+  const savedDraft = readDraft();
 
-  // ── "Continue" mode state ──
-  const [prevCGPA, setPrevCGPA] = useState("");
-  const [prevUnits, setPrevUnits] = useState("");
-  const [courses, setCourses] = useState([makeEmptyCourse()]);
+  const [mode, setMode] = useState(null);
+  const [showGuide, setShowGuide] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  const [prevCGPA, setPrevCGPA] = useState(savedDraft?.prevCGPA || "");
+  const [prevUnits, setPrevUnits] = useState(savedDraft?.prevUnits || "");
+  const [continueCourses, setContinueCourses] = useState(
+    savedDraft?.continueCourses?.length
+      ? savedDraft.continueCourses
+      : [makeEmptyCourse()]
+  );
   const [continueResult, setContinueResult] = useState(null);
   const [continueError, setContinueError] = useState("");
 
-  // ── "Fresh" (build from scratch) mode state ──
-  const [semesters, setSemesters] = useState([
-    makeEmptySemester("100L First Semester"),
-  ]);
+  const [semesters, setSemesters] = useState(
+    savedDraft?.semesters?.length ? savedDraft.semesters : [makeEmptySemester(0)]
+  );
 
-  function updateCourse(list, setList, id, field, value) {
-    setList(list.map((c) => (c.id === id ? { ...c, [field]: value } : c)));
+  useEffect(() => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        prevCGPA,
+        prevUnits,
+        continueCourses,
+        semesters,
+      })
+    );
+  }, [prevCGPA, prevUnits, continueCourses, semesters]);
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    navigate("/");
   }
 
-  // Continue mode handlers
   function updateContinueCourse(id, field, value) {
-    updateCourse(courses, setCourses, id, field, value);
+    setContinueCourses((courses) =>
+      courses.map((course) =>
+        course.id === id ? { ...course, [field]: value } : course
+      )
+    );
     setContinueResult(null);
+    setContinueError("");
   }
+
   function addContinueCourse() {
-    setCourses([...courses, makeEmptyCourse()]);
+    setContinueCourses((courses) => [...courses, makeEmptyCourse()]);
     setContinueResult(null);
   }
+
   function removeContinueCourse(id) {
-    if (courses.length === 1) return;
-    setCourses(courses.filter((c) => c.id !== id));
+    setContinueCourses((courses) => {
+      if (courses.length === 1) return courses;
+      return courses.filter((course) => course.id !== id);
+    });
     setContinueResult(null);
   }
 
   function calculateContinue() {
     setContinueError("");
-    const stats = computeSemesterStats(courses);
+
+    const stats = computeSemesterStats(continueCourses);
+
     if (stats.units === 0) {
-      setContinueError("Add at least one course with a unit value.");
+      setContinueError("Add at least one course with a valid unit load.");
       return;
     }
 
-    const hasPrev = prevCGPA !== "" && prevUnits !== "";
-    let newCGPA = stats.gpa;
+    const enteredPreviousRecord = prevCGPA !== "" || prevUnits !== "";
+
+    if (enteredPreviousRecord && (prevCGPA === "" || prevUnits === "")) {
+      setContinueError("Enter both your previous CGPA and total units, or leave both blank.");
+      return;
+    }
+
+    let cumulativeCGPA = stats.gpa;
     let totalUnits = stats.units;
 
-    if (hasPrev) {
-      const pCGPA = parseFloat(prevCGPA);
-      const pUnits = parseFloat(prevUnits);
+    if (enteredPreviousRecord) {
+      const parsedCGPA = Number(prevCGPA);
+      const parsedUnits = Number(prevUnits);
+
       if (
-        isNaN(pCGPA) ||
-        isNaN(pUnits) ||
-        pUnits < 0 ||
-        pCGPA < 0 ||
-        pCGPA > 5
+        !Number.isFinite(parsedCGPA) ||
+        !Number.isFinite(parsedUnits) ||
+        parsedCGPA < 0 ||
+        parsedCGPA > 5 ||
+        parsedUnits < 0
       ) {
-        setContinueError("Enter a valid previous CGPA (0–5) and total units.");
+        setContinueError("Use a CGPA between 0 and 5, with a valid previous total unit value.");
         return;
       }
-      totalUnits = pUnits + stats.units;
-      newCGPA = (pCGPA * pUnits + stats.points) / totalUnits;
+
+      totalUnits = parsedUnits + stats.units;
+      cumulativeCGPA = (parsedCGPA * parsedUnits + stats.points) / totalUnits;
     }
 
     setContinueResult({
-      semesterGPA: stats.gpa.toFixed(2),
+      semesterGPA: stats.gpa,
       semesterUnits: stats.units,
-      newCGPA: newCGPA.toFixed(2),
+      cumulativeCGPA,
       totalUnits,
-      hasPrev,
+      hasPreviousRecord: enteredPreviousRecord,
     });
   }
 
-  // Fresh mode handlers
   function updateSemesterLabel(id, label) {
-    setSemesters(semesters.map((s) => (s.id === id ? { ...s, label } : s)));
-  }
-  function updateFreshCourse(semId, courseId, field, value) {
-    setSemesters(
-      semesters.map((s) =>
-        s.id === semId
-          ? {
-              ...s,
-              courses: s.courses.map((c) =>
-                c.id === courseId ? { ...c, [field]: value } : c
-              ),
-            }
-          : s
+    setSemesters((currentSemesters) =>
+      currentSemesters.map((semester) =>
+        semester.id === id ? { ...semester, label } : semester
       )
     );
   }
-  function addFreshCourse(semId) {
-    setSemesters(
-      semesters.map((s) =>
-        s.id === semId
-          ? { ...s, courses: [...s.courses, makeEmptyCourse()] }
-          : s
-      )
-    );
-  }
-  function removeFreshCourse(semId, courseId) {
-    setSemesters(
-      semesters.map((s) => {
-        if (s.id !== semId) return s;
-        if (s.courses.length === 1) return s;
-        return { ...s, courses: s.courses.filter((c) => c.id !== courseId) };
+
+  function updateFreshCourse(semesterId, courseId, field, value) {
+    setSemesters((currentSemesters) =>
+      currentSemesters.map((semester) => {
+        if (semester.id !== semesterId) return semester;
+
+        return {
+          ...semester,
+          courses: semester.courses.map((course) =>
+            course.id === courseId ? { ...course, [field]: value } : course
+          ),
+        };
       })
     );
   }
-  function addSemester() {
-    const nextLabel = `Semester ${semesters.length + 1}`;
-    setSemesters([...semesters, makeEmptySemester(nextLabel)]);
-  }
-  function removeSemester(id) {
-    if (semesters.length === 1) return;
-    setSemesters(semesters.filter((s) => s.id !== id));
+
+  function addFreshCourse(semesterId) {
+    setSemesters((currentSemesters) =>
+      currentSemesters.map((semester) =>
+        semester.id === semesterId
+          ? { ...semester, courses: [...semester.courses, makeEmptyCourse()] }
+          : semester
+      )
+    );
   }
 
-  // Running cumulative totals across all semesters entered so far, live
+  function removeFreshCourse(semesterId, courseId) {
+    setSemesters((currentSemesters) =>
+      currentSemesters.map((semester) => {
+        if (semester.id !== semesterId || semester.courses.length === 1) {
+          return semester;
+        }
+
+        return {
+          ...semester,
+          courses: semester.courses.filter((course) => course.id !== courseId),
+        };
+      })
+    );
+  }
+
+  function addSemester() {
+    setSemesters((currentSemesters) => [
+      ...currentSemesters,
+      makeEmptySemester(currentSemesters.length),
+    ]);
+  }
+
+  function removeSemester(id) {
+    setSemesters((currentSemesters) => {
+      if (currentSemesters.length === 1) return currentSemesters;
+      return currentSemesters.filter((semester) => semester.id !== id);
+    });
+  }
+
+  function resetCalculator() {
+    localStorage.removeItem(STORAGE_KEY);
+    setPrevCGPA("");
+    setPrevUnits("");
+    setContinueCourses([makeEmptyCourse()]);
+    setContinueResult(null);
+    setContinueError("");
+    setSemesters([makeEmptySemester(0)]);
+    setMode(null);
+    setShowResetConfirm(false);
+  }
+
   const freshRunning = semesters.reduce(
-    (acc, sem) => {
-      const stats = computeSemesterStats(sem.courses);
+    (summary, semester) => {
+      const stats = computeSemesterStats(semester.courses);
+
       return {
-        units: acc.units + stats.units,
-        points: acc.points + stats.points,
+        units: summary.units + stats.units,
+        points: summary.points + stats.points,
       };
     },
     { units: 0, points: 0 }
   );
+
   const freshCGPA =
     freshRunning.units > 0 ? freshRunning.points / freshRunning.units : 0;
 
-  // ── Mode picker screen ──
-  if (!mode) {
-    return (
-      <div className="min-h-screen bg-gray-950 px-6 py-10 max-w-2xl mx-auto">
-        <AnimatedBackground />
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-4 mb-8"
-        >
-          <button
-            onClick={() => navigate("/home")}
-            className="text-gray-500 hover:text-white text-sm font-bold transition-colors"
-          >
-            ← Back
-          </button>
-          <h1 className="text-white font-black text-2xl">CGPA Calculator</h1>
-        </motion.div>
-
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="text-gray-400 text-sm mb-8"
-        >
-          First, tell us where you're starting from.
-        </motion.p>
-
-        <div className="flex flex-col gap-4">
-          <motion.button
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            onClick={() => setMode("fresh")}
-            className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-left hover:border-gray-600 transition-colors"
-          >
-            <p className="text-white font-black text-lg mb-1">
-              I'm starting from scratch
-            </p>
-            <p className="text-gray-500 text-sm">
-              You've never calculated a CGPA before, or want to rebuild it from
-              your very first semester onward, one semester at a time.
-            </p>
-          </motion.button>
-
-          <motion.button
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            onClick={() => setMode("continue")}
-            className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-left hover:border-gray-600 transition-colors"
-          >
-            <p className="text-white font-black text-lg mb-1">
-              I already know my CGPA
-            </p>
-            <p className="text-gray-500 text-sm">
-              You know your current CGPA and total units, and just want to add
-              one new semester on top of it.
-            </p>
-          </motion.button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── "Continue" mode screen ──
-  if (mode === "continue") {
-    return (
-      <div className="min-h-screen bg-gray-950 px-6 py-10 max-w-2xl mx-auto">
-        <AnimatedBackground />
-        <div className="flex items-center gap-4 mb-8">
-          <button
-            onClick={() => setMode(null)}
-            className="text-gray-500 hover:text-white text-sm font-bold transition-colors"
-          >
-            ← Back
-          </button>
-          <h1 className="text-white font-black text-2xl">Add a Semester</h1>
-        </div>
-
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 mb-6">
-          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-4">
-            Your Current Record
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-gray-500 text-xs font-bold mb-1 block">
-                Current CGPA
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                max="5"
-                value={prevCGPA}
-                onChange={(e) => {
-                  setPrevCGPA(e.target.value);
-                  setContinueResult(null);
-                }}
-                placeholder="e.g. 4.20"
-                className="w-full bg-gray-800 border border-gray-700 text-white placeholder-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors"
-              />
-            </div>
-            <div>
-              <label className="text-gray-500 text-xs font-bold mb-1 block">
-                Total Units So Far
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={prevUnits}
-                onChange={(e) => {
-                  setPrevUnits(e.target.value);
-                  setContinueResult(null);
-                }}
-                placeholder="e.g. 90"
-                className="w-full bg-gray-800 border border-gray-700 text-white placeholder-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors"
-              />
-            </div>
-          </div>
-        </div>
-
-        <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-4">
-          New Semester's Courses
-        </p>
-        <div className="flex flex-col gap-3 mb-3">
-          {courses.map((course, i) => (
-            <div
-              key={course.id}
-              className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex gap-3 items-center"
-            >
-              <input
-                type="text"
-                value={course.name}
-                onChange={(e) =>
-                  updateContinueCourse(course.id, "name", e.target.value)
-                }
-                placeholder={`Course ${i + 1} (optional)`}
-                className="flex-1 bg-gray-800 border border-gray-700 text-white placeholder-gray-600 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition-colors min-w-0"
-              />
-              <input
-                type="number"
-                min="1"
-                value={course.units}
-                onChange={(e) =>
-                  updateContinueCourse(course.id, "units", e.target.value)
-                }
-                placeholder="Units"
-                className="w-20 bg-gray-800 border border-gray-700 text-white placeholder-gray-600 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition-colors"
-              />
-              <select
-                value={course.grade}
-                onChange={(e) =>
-                  updateContinueCourse(course.id, "grade", e.target.value)
-                }
-                className="bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition-colors"
-              >
-                {GRADES.map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={() => removeContinueCourse(course.id)}
-                disabled={courses.length === 1}
-                className="text-gray-600 hover:text-red-400 disabled:opacity-20 transition-colors text-lg font-bold px-1"
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-
-        <button
-          onClick={addContinueCourse}
-          className="w-full border border-gray-800 text-gray-400 hover:text-white hover:border-gray-600 font-bold py-3 rounded-xl transition-colors text-sm mb-6"
-        >
-          + Add Course
-        </button>
-
-        {continueError && (
-          <p className="text-red-400 text-xs font-bold mb-4">{continueError}</p>
-        )}
-
-        <button
-          onClick={calculateContinue}
-          className="w-full bg-white text-gray-950 font-black py-3 rounded-xl hover:bg-gray-200 transition-colors mb-6"
-        >
-          Calculate
-        </button>
-
-        {continueResult && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-gray-900 border border-gray-800 rounded-2xl p-6"
-          >
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">
-              This Semester's GPA
-            </p>
-            <p className="text-white font-black text-4xl mb-1">
-              {continueResult.semesterGPA}
-              <span className="text-gray-500 text-lg">/5.00</span>
-            </p>
-            <p className="text-gray-600 text-xs mb-6">
-              {continueResult.semesterUnits} units this semester
-            </p>
-
-            <div className="h-px bg-gray-800 mb-6" />
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">
-              New Cumulative CGPA
-            </p>
-            <p className="text-white font-black text-4xl mb-1">
-              {continueResult.newCGPA}
-              <span className="text-gray-500 text-lg">/5.00</span>
-            </p>
-            <p className="text-gray-600 text-xs mb-4">
-              {continueResult.totalUnits} total units
-            </p>
-            <div className="bg-gray-800 rounded-xl px-4 py-3">
-              <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">
-                Class of Degree
-              </p>
-              <p className="text-white font-black text-lg">
-                {classOfDegree(parseFloat(continueResult.newCGPA))}
-              </p>
-            </div>
-          </motion.div>
-        )}
-      </div>
-    );
-  }
-
-  // ── "Fresh" (build from scratch) mode screen ──
   return (
-    <div className="min-h-screen bg-gray-950 px-6 py-10 max-w-2xl mx-auto">
-      <AnimatedBackground />
-      <div className="flex items-center gap-4 mb-6">
+    <AppShell onSignOut={handleSignOut}>
+      <div className="swift-page cgpa-page">
         <button
-          onClick={() => setMode(null)}
-          className="text-gray-500 hover:text-white text-sm font-bold transition-colors"
+          type="button"
+          className="swift-back-button"
+          onClick={() => (mode ? setMode(null) : navigate("/home"))}
         >
-          ← Back
+          <span aria-hidden="true">←</span> {mode ? "Calculator choices" : "Study space"}
         </button>
-        <h1 className="text-white font-black text-2xl">Build Your CGPA</h1>
-      </div>
 
-      <button
-        onClick={() => setShowHelp(!showHelp)}
-        className="text-gray-500 hover:text-white text-xs font-bold mb-4 flex items-center gap-1"
-      >
-        {showHelp ? "Hide" : "How does this work?"}
-      </button>
+        <section className="cgpa-intro">
+          <p className="swift-eyebrow">Academic tools</p>
+          <h1>Know where you stand.</h1>
+          <p>
+            Calculate one semester, rebuild your cumulative CGPA, or continue
+            from the record you already have.
+          </p>
+        </section>
 
-      <AnimatePresence>
-        {showHelp && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 mb-6 text-sm text-gray-400 leading-relaxed">
-              <p className="mb-2">
-                <span className="text-white font-bold">
-                  Add one semester at a time
-                </span>
-                , starting from your very first semester (e.g. 100L First
-                Semester), in the order you actually took them.
-              </p>
-              <p className="mb-2">
-                For each semester, list every course you took that session, its
-                unit load, and the grade you got. Once you've entered a
-                semester, tap{" "}
-                <span className="text-white font-bold">+ Add Semester</span> to
-                move on to the next one.
-              </p>
-              <p>
-                Your running CGPA updates automatically at the bottom as you go
-                — by the time you've entered your most recent semester, that
-                number is your actual current CGPA.
-              </p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        {mode === null && (
+          <>
+            <section className="cgpa-mode-grid">
+              <button
+                type="button"
+                className="cgpa-mode-option"
+                onClick={() => setMode("continue")}
+              >
+                <span className="cgpa-mode-number">01</span>
+                <strong>Add a new semester</strong>
+                <p>
+                  You already know your CGPA and total units, and only need to
+                  add your latest results.
+                </p>
+                <span>Continue from my record →</span>
+              </button>
 
-      <div className="flex flex-col gap-5 mb-4">
-        {semesters.map((sem, semIndex) => {
-          const stats = computeSemesterStats(sem.courses);
-          return (
-            <div
-              key={sem.id}
-              className="bg-gray-900 border border-gray-800 rounded-2xl p-5"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <input
-                  type="text"
-                  value={sem.label}
-                  onChange={(e) => updateSemesterLabel(sem.id, e.target.value)}
-                  className="bg-transparent text-white font-black text-base focus:outline-none border-b border-transparent focus:border-gray-600 transition-colors"
-                />
-                {semesters.length > 1 && (
-                  <button
-                    onClick={() => removeSemester(sem.id)}
-                    className="text-gray-600 hover:text-red-400 transition-colors text-xs font-bold"
-                  >
-                    Remove
-                  </button>
-                )}
+              <button
+                type="button"
+                className="cgpa-mode-option"
+                onClick={() => setMode("fresh")}
+              >
+                <span className="cgpa-mode-number">02</span>
+                <strong>Build from the beginning</strong>
+                <p>
+                  Enter every semester you have completed and Swift will keep
+                  the running CGPA updated.
+                </p>
+                <span>Start from my first semester →</span>
+              </button>
+            </section>
+
+            <section className="cgpa-guide-card">
+              <div>
+                <p className="swift-eyebrow">Which one should I use?</p>
+                <h2>Most returning students should continue.</h2>
+              </div>
+              <div>
+                <p>
+                  If your portal or result slip shows both a CGPA and total
+                  units, choose <b>Add a new semester</b>. You do not need to
+                  type every old course again.
+                </p>
+                <button type="button" onClick={() => setShowGuide(!showGuide)}>
+                  {showGuide ? "Hide example" : "Show an example"}
+                </button>
               </div>
 
-              <div className="flex flex-col gap-2 mb-3">
-                {sem.courses.map((course, i) => (
-                  <div key={course.id} className="flex gap-2 items-center">
-                    <input
-                      type="text"
-                      value={course.name}
-                      onChange={(e) =>
-                        updateFreshCourse(
-                          sem.id,
-                          course.id,
-                          "name",
-                          e.target.value
-                        )
-                      }
-                      placeholder={`Course ${i + 1} (optional)`}
-                      className="flex-1 bg-gray-800 border border-gray-700 text-white placeholder-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 transition-colors min-w-0"
-                    />
-                    <input
-                      type="number"
-                      min="1"
-                      value={course.units}
-                      onChange={(e) =>
-                        updateFreshCourse(
-                          sem.id,
-                          course.id,
-                          "units",
-                          e.target.value
-                        )
-                      }
-                      placeholder="Units"
-                      className="w-16 bg-gray-800 border border-gray-700 text-white placeholder-gray-600 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-blue-500 transition-colors"
-                    />
-                    <select
-                      value={course.grade}
-                      onChange={(e) =>
-                        updateFreshCourse(
-                          sem.id,
-                          course.id,
-                          "grade",
-                          e.target.value
-                        )
-                      }
-                      className="bg-gray-800 border border-gray-700 text-white rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-blue-500 transition-colors"
-                    >
-                      {GRADES.map((g) => (
-                        <option key={g} value={g}>
-                          {g}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => removeFreshCourse(sem.id, course.id)}
-                      disabled={sem.courses.length === 1}
-                      className="text-gray-600 hover:text-red-400 disabled:opacity-20 transition-colors text-base font-bold px-1"
-                    >
-                      ×
-                    </button>
-                  </div>
+              {showGuide && (
+                <div className="cgpa-guide-example">
+                  <p>
+                    Example: a student with a previous CGPA of <b>4.20</b> over{" "}
+                    <b>90 units</b> enters only the courses from the new
+                    semester. Swift combines both records automatically.
+                  </p>
+                </div>
+              )}
+            </section>
+          </>
+        )}
+
+        {mode === "continue" && (
+          <section className="cgpa-workspace">
+            <div className="cgpa-workspace-heading">
+              <div>
+                <p className="swift-eyebrow">Add a new semester</p>
+                <h2>Start from your current record.</h2>
+              </div>
+              <p>Saved automatically on this device.</p>
+            </div>
+
+            <div className="cgpa-record-card">
+              <div>
+                <label>
+                  Previous CGPA
+                  <input
+                    type="number"
+                    min="0"
+                    max="5"
+                    step="0.01"
+                    value={prevCGPA}
+                    onChange={(event) => {
+                      setPrevCGPA(event.target.value);
+                      setContinueResult(null);
+                    }}
+                    placeholder="e.g. 4.20"
+                  />
+                </label>
+                <small>Leave blank only if this is your first semester.</small>
+              </div>
+
+              <div>
+                <label>
+                  Total units completed
+                  <input
+                    type="number"
+                    min="0"
+                    inputMode="numeric"
+                    value={prevUnits}
+                    onChange={(event) => {
+                      setPrevUnits(event.target.value);
+                      setContinueResult(null);
+                    }}
+                    placeholder="e.g. 90"
+                  />
+                </label>
+                <small>Use the total unit value beside your current CGPA.</small>
+              </div>
+            </div>
+
+            <section className="cgpa-semester-section">
+              <div className="cgpa-section-heading">
+                <div>
+                  <p className="swift-eyebrow">New semester</p>
+                  <h3>Add your courses and grades.</h3>
+                </div>
+                <span>A = 5 · B = 4 · C = 3 · D = 2 · E = 1 · F = 0</span>
+              </div>
+
+              <div className="cgpa-course-table">
+                {continueCourses.map((course, index) => (
+                  <CourseRow
+                    key={course.id}
+                    course={course}
+                    index={index}
+                    canRemove={continueCourses.length > 1}
+                    onChange={(field, value) =>
+                      updateContinueCourse(course.id, field, value)
+                    }
+                    onRemove={() => removeContinueCourse(course.id)}
+                  />
                 ))}
               </div>
 
               <button
-                onClick={() => addFreshCourse(sem.id)}
-                className="w-full border border-gray-800 text-gray-500 hover:text-white hover:border-gray-600 font-bold py-2 rounded-lg transition-colors text-xs mb-3"
+                type="button"
+                className="cgpa-add-button"
+                onClick={addContinueCourse}
               >
-                + Add Course
+                + Add course
               </button>
+            </section>
 
-              {stats.units > 0 && (
-                <p className="text-gray-500 text-xs">
-                  This semester:{" "}
-                  <span className="text-white font-bold">
-                    {stats.gpa.toFixed(2)}
-                  </span>{" "}
-                  GPA over {stats.units} units
-                </p>
-              )}
+            {continueError && <p className="cgpa-error">{continueError}</p>}
+
+            <button
+              type="button"
+              className="swift-primary-button cgpa-calculate-button"
+              onClick={calculateContinue}
+            >
+              Calculate record <span aria-hidden="true">→</span>
+            </button>
+
+            {continueResult && (
+              <div className="cgpa-continue-results">
+                <div className="cgpa-semester-result">
+                  <p>This semester</p>
+                  <strong>
+                    {continueResult.semesterGPA.toFixed(2)}
+                    <span>/5.00</span>
+                  </strong>
+                  <small>{continueResult.semesterUnits} units entered</small>
+                </div>
+
+                <ResultPanel
+                  title={
+                    continueResult.hasPreviousRecord
+                      ? "New cumulative CGPA"
+                      : "Semester GPA"
+                  }
+                  cgpa={continueResult.cumulativeCGPA}
+                  units={continueResult.totalUnits}
+                />
+              </div>
+            )}
+          </section>
+        )}
+
+        {mode === "fresh" && (
+          <section className="cgpa-workspace">
+            <div className="cgpa-workspace-heading">
+              <div>
+                <p className="swift-eyebrow">Build from the beginning</p>
+                <h2>Add one completed semester at a time.</h2>
+              </div>
+              <p>Saved automatically on this device.</p>
             </div>
-          );
-        })}
+
+            <div className="cgpa-fresh-note">
+              Begin with your earliest completed semester. The labels are only
+              suggestions, so rename them if your own academic path differs.
+            </div>
+
+            <div className="cgpa-semester-stack">
+              {semesters.map((semester, semesterIndex) => {
+                const stats = computeSemesterStats(semester.courses);
+
+                return (
+                  <section key={semester.id} className="cgpa-semester-card">
+                    <div className="cgpa-semester-card-header">
+                      <div>
+                        <span>{String(semesterIndex + 1).padStart(2, "0")}</span>
+                        <input
+                          type="text"
+                          value={semester.label}
+                          onChange={(event) =>
+                            updateSemesterLabel(semester.id, event.target.value)
+                          }
+                          aria-label={`Semester ${semesterIndex + 1} label`}
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => removeSemester(semester.id)}
+                        disabled={semesters.length === 1}
+                      >
+                        Remove
+                      </button>
+                    </div>
+
+                    <div className="cgpa-course-table">
+                      {semester.courses.map((course, courseIndex) => (
+                        <CourseRow
+                          key={course.id}
+                          course={course}
+                          index={courseIndex}
+                          canRemove={semester.courses.length > 1}
+                          onChange={(field, value) =>
+                            updateFreshCourse(
+                              semester.id,
+                              course.id,
+                              field,
+                              value
+                            )
+                          }
+                          onRemove={() =>
+                            removeFreshCourse(semester.id, course.id)
+                          }
+                        />
+                      ))}
+                    </div>
+
+                    <div className="cgpa-semester-card-footer">
+                      <button
+                        type="button"
+                        className="cgpa-add-button"
+                        onClick={() => addFreshCourse(semester.id)}
+                      >
+                        + Add course
+                      </button>
+
+                      {stats.units > 0 && (
+                        <p>
+                          Semester GPA: <b>{stats.gpa.toFixed(2)}</b> over{" "}
+                          {stats.units} units
+                        </p>
+                      )}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              className="cgpa-add-semester-button"
+              onClick={addSemester}
+            >
+              + Add another semester
+            </button>
+
+            {freshRunning.units > 0 && (
+              <ResultPanel
+                title={`Running CGPA across ${semesters.length} semester${
+                  semesters.length === 1 ? "" : "s"
+                }`}
+                cgpa={freshCGPA}
+                units={freshRunning.units}
+              />
+            )}
+          </section>
+        )}
+
+        {mode && (
+          <section className="cgpa-reset-section">
+            {showResetConfirm ? (
+              <div>
+                <p>
+                  Clear every saved CGPA entry from this device? This cannot be
+                  undone.
+                </p>
+                <button type="button" onClick={resetCalculator}>
+                  Yes, clear calculator
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowResetConfirm(false)}
+                >
+                  Keep my entries
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowResetConfirm(true)}
+              >
+                Clear saved calculator entries
+              </button>
+            )}
+          </section>
+        )}
       </div>
-
-      <button
-        onClick={addSemester}
-        className="w-full bg-gray-900 border border-gray-700 text-white font-bold py-3 rounded-xl hover:border-gray-500 transition-colors mb-6"
-      >
-        + Add Semester
-      </button>
-
-      {freshRunning.units > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gray-900 border border-gray-800 rounded-2xl p-6"
-        >
-          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">
-            Running CGPA ({semesters.length} semester
-            {semesters.length > 1 ? "s" : ""} entered)
-          </p>
-          <p className="text-white font-black text-4xl mb-1">
-            {freshCGPA.toFixed(2)}
-            <span className="text-gray-500 text-lg">/5.00</span>
-          </p>
-          <p className="text-gray-600 text-xs mb-4">
-            {freshRunning.units} total units
-          </p>
-          <div className="bg-gray-800 rounded-xl px-4 py-3">
-            <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">
-              Class of Degree
-            </p>
-            <p className="text-white font-black text-lg">
-              {classOfDegree(freshCGPA)}
-            </p>
-          </div>
-        </motion.div>
-      )}
-    </div>
+    </AppShell>
   );
 }
