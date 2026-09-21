@@ -1,16 +1,7 @@
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-
-const circles = Array.from({ length: 20 }, (_, i) => ({
-  id: i,
-  size: Math.random() * 60 + 20,
-  x: Math.random() * 100,
-  y: Math.random() * 100,
-  duration: Math.random() * 10 + 8,
-  delay: Math.random() * 5,
-}));
+import studyDeskImage from "../assets/swift-study-desk.png";
 
 export default function WelcomePage() {
   const navigate = useNavigate();
@@ -25,77 +16,86 @@ export default function WelcomePage() {
           } else {
             setChecking(false);
           }
-        } else if (event === "SIGNED_IN") {
+        }
+
+        if (event === "SIGNED_IN") {
           navigate("/home");
         }
       }
     );
+
     return () => listener.subscription.unsubscribe();
-  }, []);
+  }, [navigate]);
 
   if (checking) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <p className="text-gray-500 text-sm font-bold animate-pulse">
-          Loading...
-        </p>
+      <div className="swift-loading-screen">
+        <span className="swift-loading-mark">S</span>
+        <p>Preparing Swift...</p>
       </div>
     );
   }
 
   return (
-    <div className="relative min-h-screen bg-gray-950 flex flex-col items-center justify-center px-4 overflow-hidden">
-      {circles.map((circle) => (
-        <motion.div
-          key={circle.id}
-          className="absolute rounded-full bg-white opacity-5"
-          style={{
-            width: circle.size,
-            height: circle.size,
-            left: `${circle.x}%`,
-            top: `${circle.y}%`,
-          }}
-          animate={{
-            y: [-20, 20, -20],
-            x: [-10, 10, -10],
-            opacity: [0.03, 0.08, 0.03],
-          }}
-          transition={{
-            duration: circle.duration,
-            delay: circle.delay,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-      ))}
-      <motion.div
-        initial={{ opacity: 0, y: -30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="text-center mb-10 z-10"
-      >
-        <h1 className="text-6xl font-black text-white tracking-tight">Swift</h1>
-        <p className="text-gray-400 text-lg mt-3">Study smarter. Not harder.</p>
-      </motion.div>
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 0.3 }}
-        className="flex flex-col gap-4 w-full max-w-xs z-10"
-      >
+    <div className="welcome-page">
+      <header className="public-header">
         <button
-          onClick={() => navigate("/signup")}
-          className="bg-white text-gray-950 font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors"
+          type="button"
+          className="swift-brand"
+          onClick={() => navigate("/")}
+          aria-label="Go to Swift home"
         >
-          Get Started
+          <span className="swift-brand-mark">S</span>
+          <span>Swift</span>
         </button>
+
         <button
+          type="button"
+          className="public-header-link"
           onClick={() => navigate("/signin")}
-          className="border border-gray-600 text-white font-bold py-3 rounded-xl hover:bg-gray-800 transition-colors"
         >
-          Sign In
+          Sign in
         </button>
-      </motion.div>
+      </header>
+
+      <main className="welcome-main">
+        <section className="welcome-copy">
+          <p className="swift-eyebrow">For UNILAG Engineering</p>
+          <h1>Your study system, built around your actual courses.</h1>
+          <p>
+            Find materials, practise with curated questions, and keep your
+            academic tools in one clear place.
+          </p>
+
+          <div className="welcome-actions">
+            <button
+              type="button"
+              className="swift-primary-button"
+              onClick={() => navigate("/signup")}
+            >
+              Create an account <span aria-hidden="true">→</span>
+            </button>
+            <button
+              type="button"
+              className="welcome-signin-button"
+              onClick={() => navigate("/signin")}
+            >
+              I already have an account
+            </button>
+          </div>
+        </section>
+
+        <section className="welcome-visual" aria-label="Swift study materials">
+          <img
+            src={studyDeskImage}
+            alt="Engineering notes, calculator, and technical drawings"
+          />
+          <div className="welcome-visual-note">
+            <p>Course materials</p>
+            <strong>100L · 200L · 300L</strong>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
