@@ -7,29 +7,55 @@ export default function ViewerPage() {
   const navigate = useNavigate();
   const [material, setMaterial] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     async function fetchMaterial() {
-      const { data, error } = await supabase
+      const { data, error: materialError } = await supabase
         .from("materials")
         .select("*")
         .eq("id", materialId)
         .single();
-      if (!error) setMaterial(data);
+
+      if (materialError || !data) {
+        setError("This material could not be opened.");
+      } else {
+        setMaterial(data);
+      }
+
       setLoading(false);
     }
+
     fetchMaterial();
   }, [materialId]);
 
   function getViewerUrl(fileUrl) {
-    const driveMatch = fileUrl.match(/id=([a-zA-Z0-9_-]+)/);
-    if (driveMatch) {
-      return `https://drive.google.com/file/d/${driveMatch[1]}/preview`;
+    if (!fileUrl) return null;
+
+    const driveFileMatch =
+      fileUrl.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+      fileUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+
+    if (driveFileMatch) {
+      return `https://drive.google.com/file/d/${driveFileMatch[1]}/preview`;
     }
-    const docsMatch = fileUrl.match(/\/d\/([a-zA-Z0-9_-]+)\//);
-    if (docsMatch) {
-      return `https://docs.google.com/presentation/d/${docsMatch[1]}/embed`;
+
+    const presentationMatch = fileUrl.match(
+      /docs\.google\.com\/presentation\/d\/([a-zA-Z0-9_-]+)/
+    );
+
+    if (presentationMatch) {
+      return `https://docs.google.com/presentation/d/${presentationMatch[1]}/embed`;
     }
+
+    const documentMatch = fileUrl.match(
+      /docs\.google\.com\/document\/d\/([a-zA-Z0-9_-]+)/
+    );
+
+    if (documentMatch) {
+      return `https://docs.google.com/document/d/${documentMatch[1]}/preview`;
+    }
+
     return null;
   }
 
@@ -39,72 +65,95 @@ export default function ViewerPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <p className="text-gray-500 text-sm font-bold animate-pulse">
-          Loading...
-        </p>
+      <div className="swift-loading-screen">
+        <span className="swift-loading-mark">S</span>
+        <p>Opening material...</p>
       </div>
     );
   }
 
-  const viewerUrl = getViewerUrl(material?.file_url);
-  const mediafire = isMediaFire(material?.file_url);
+  if (error || !material) {
+    return (
+      <div className="viewer-page viewer-empty-state">
+        <button
+          type="button"
+          className="swift-back-button"
+          onClick={() => navigate(-1)}
+        >
+          <span aria-hidden="true">←</span> Back
+        </button>
+        <p>{error || "Material not found."}</p>
+      </div>
+    );
+  }
+
+  const viewerUrl = getViewerUrl(material.file_url);
+  const mediafire = isMediaFire(material.file_url);
 
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col">
-      {/* Header */}
-      <div className="flex items-center gap-4 px-6 py-4 border-b border-gray-800">
-        <button
-          onClick={() => navigate(-1)}
-          className="text-gray-500 hover:text-white text-sm font-bold transition-colors"
+    <div className="viewer-page">
+      <header className="viewer-header">
+        <div className="viewer-header-main">
+          <button
+            type="button"
+            className="swift-brand"
+            onClick={() => navigate("/home")}
+            aria-label="Go to Swift home"
+          >
+            <span className="swift-brand-mark">S</span>
+            <span>Swift</span>
+          </button>
+
+          <span className="viewer-divider" aria-hidden="true" />
+
+          <button
+            type="button"
+            className="viewer-back-button"
+            onClick={() => navigate(-1)}
+          >
+            <span aria-hidden="true">←</span> Course
+          </button>
+        </div>
+
+        <p className="viewer-title">{material.title}</p>
+
+        <a
+          href={material.file_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="viewer-external-link"
         >
-          ← Back
-        </button>
-        <p className="text-white font-black text-sm truncate">
-          {material?.title}
-        </p>
-      </div>
+          Open externally <span aria-hidden="true">↗</span>
+        </a>
+      </header>
 
-      {/* Viewer */}
-      {mediafire ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-6 px-6">
-          <p className="text-gray-400 text-sm text-center">
-            This file is hosted on MediaFire and cannot be previewed directly.
-          </p>
-
-          <a
-            href={material?.file_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="bg-white text-black font-black text-sm px-6 py-3 rounded-xl hover:bg-gray-200 transition-colors"
-          >
-            Open File →
-          </a>
-        </div>
-      ) : viewerUrl ? (
-        <iframe
-          src={viewerUrl}
-          className="flex-1 w-full"
-          style={{ minHeight: "calc(100vh - 60px)" }}
-          allow="autoplay"
-          title={material?.title}
-        />
-      ) : (
-        <div className="flex-1 flex flex-col items-center justify-center gap-6 px-6">
-          <p className="text-gray-400 text-sm text-center">
-            This file cannot be previewed directly.
-          </p>
-
-          <a
-            href={material?.file_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="bg-white text-black font-black text-sm px-6 py-3 rounded-xl hover:bg-gray-200 transition-colors"
-          >
-            Open File →
-          </a>
-        </div>
-      )}
+      <main className="viewer-content">
+        {mediafire || !viewerUrl ? (
+          <section className="viewer-fallback">
+            <p className="swift-eyebrow">External material</p>
+            <h1>This file opens in its original host.</h1>
+            <p>
+              Swift cannot preview this material directly, but you can open it
+              in a new tab or app.
+            </p>
+            <a
+              href={material.file_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="swift-primary-button"
+            >
+              Open material <span aria-hidden="true">↗</span>
+            </a>
+          </section>
+        ) : (
+          <iframe
+            src={viewerUrl}
+            className="material-viewer-frame"
+            allow="autoplay"
+            title={material.title}
+          />
+        )}
+      </main>
     </div>
   );
 }
