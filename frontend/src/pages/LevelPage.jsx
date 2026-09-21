@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { motion } from "framer-motion";
 import { supabase } from "../lib/supabase";
-import AnimatedBackground from "../components/AnimatedBackground";
+import AppShell from "../components/AppShell";
 
 export default function LevelPage() {
   const { level } = useParams();
@@ -10,100 +9,108 @@ export default function LevelPage() {
   const [courses, setCourses] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     async function fetchCourses() {
-      const { data, error } = await supabase
+      const { data, error: coursesError } = await supabase
         .from("courses")
         .select("*")
         .eq("level", level)
         .order("code", { ascending: true });
 
-      if (!error) setCourses(data);
+      if (coursesError) {
+        setError("Courses could not be loaded right now.");
+      } else {
+        setCourses(data || []);
+      }
+
       setLoading(false);
     }
 
     fetchCourses();
   }, [level]);
 
-  const filtered = courses.filter(
-    (c) =>
-      c.title.toLowerCase().includes(search.toLowerCase()) ||
-      c.code.toLowerCase().includes(search.toLowerCase()),
-  );
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <p className="text-gray-500 text-sm font-bold animate-pulse">
-          Loading...
-        </p>
-      </div>
-    );
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    navigate("/");
   }
 
+  const filteredCourses = courses.filter((course) => {
+    const query = search.toLowerCase().trim();
+
+    return (
+      course.title.toLowerCase().includes(query) ||
+      course.code.toLowerCase().includes(query)
+    );
+  });
+
   return (
-    <div className="min-h-screen bg-gray-950 px-6 py-10 max-w-2xl mx-auto">
-      <AnimatedBackground />
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="flex items-center gap-4 mb-8"
-      >
+    <AppShell onSignOut={handleSignOut}>
+      <div className="swift-page level-page">
         <button
+          type="button"
+          className="swift-back-button"
           onClick={() => navigate("/home")}
-          className="text-gray-500 hover:text-white text-sm font-bold transition-colors"
         >
-          ← Back
+          <span aria-hidden="true">←</span> Study space
         </button>
-        <h1 className="text-white font-black text-2xl">{level} Level</h1>
-      </motion.div>
 
-      {/* Search */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.1 }}
-        className="mb-6"
-      >
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by course name or code..."
-          className="w-full bg-gray-900 border border-gray-800 text-white placeholder-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gray-600 transition-colors"
-        />
-      </motion.div>
+        <section className="level-intro">
+          <p className="swift-eyebrow">Course library</p>
+          <h1>{level} Level</h1>
+          <p>
+            Browse the courses, open the material collection for each one, and
+            practise wherever a curated bank is available.
+          </p>
+        </section>
 
-      {/* Course list */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
-        className="flex flex-col gap-3"
-      >
-        {filtered.length === 0 ? (
-          <p className="text-gray-500 text-sm">No courses match your search.</p>
+        <div className="level-toolbar">
+          <label className="course-search">
+            <span className="sr-only">Search courses</span>
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by course name or code"
+            />
+          </label>
+
+          <p className="course-count">
+            {loading ? "Loading courses..." : `${filteredCourses.length} courses`}
+          </p>
+        </div>
+
+        {error ? (
+          <div className="level-message is-error">{error}</div>
+        ) : loading ? (
+          <div className="level-message">Loading your course library...</div>
+        ) : filteredCourses.length === 0 ? (
+          <div className="level-message">
+            No courses match that search.
+          </div>
         ) : (
-          filtered.map((course) => (
-            <button
-              key={course.id}
-              onClick={() => navigate(`/course/${course.id}`)}
-              className="bg-gray-900 border border-gray-800 rounded-2xl p-5 text-left hover:border-gray-600 transition-colors"
-            >
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">
-                {course.code}
-              </p>
-              <p className="text-white font-black text-base mb-1">
-                {course.title}
-              </p>
-              <p className="text-gray-600 text-xs">{course.description}</p>
-            </button>
-          ))
+          <div className="course-library-list">
+            {filteredCourses.map((course) => (
+              <button
+                key={course.id}
+                type="button"
+                className="course-library-row"
+                onClick={() => navigate(`/course/${course.id}`)}
+              >
+                <span className="course-library-code">{course.code}</span>
+                <span className="course-library-content">
+                  <strong>{course.title}</strong>
+                  {course.description && <small>{course.description}</small>}
+                </span>
+                <span className="course-library-arrow" aria-hidden="true">
+                  →
+                </span>
+              </button>
+            ))}
+          </div>
         )}
-      </motion.div>
-    </div>
+      </div>
+    </AppShell>
   );
 }
