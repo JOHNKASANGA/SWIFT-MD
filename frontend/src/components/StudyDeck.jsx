@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import studyDeskImage from "../assets/swift-study-desk.png";
 
 const levels = [
   {
@@ -64,6 +65,12 @@ export default function StudyDeck() {
       </div>
 
       <div className="deck-stage" aria-live="polite">
+        <img
+          src={studyDeskImage}
+          alt="Engineering study desk with notes, calculator, and technical drawings"
+          className="deck-study-photo"
+        />
+
         <div className={`deck-stack level-${selectedLevel}`}>
           {levels.map((item, index) => (
             <button
