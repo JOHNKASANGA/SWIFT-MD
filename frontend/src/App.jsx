@@ -12,6 +12,7 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 import ViewerPage from "./pages/ViewerPage";
 import CGPACalculatorPage from "./pages/CGPACalculatorPage";
 import PracticePage from "./pages/PracticePage";
+import NotFoundPage from "./pages/NotFoundPage";
 
 export default function App() {
   useEffect(() => {
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/view/:materialId" element={<ViewerPage />} />
         <Route path="/cgpa" element={<CGPACalculatorPage />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>
   );

@@ -20,7 +20,6 @@ export default function TestPage() {
   const [attemptMode, setAttemptMode] = useState("practice");
   const [numQuestions, setNumQuestions] = useState(10);
   const [timerMinutes, setTimerMinutes] = useState(0);
-  const [section, setSection] = useState("");
   const [cachedMCQ, setCachedMCQ] = useState(null);
   const [cachedGerman, setCachedGerman] = useState(null);
 
@@ -129,18 +128,6 @@ export default function TestPage() {
             </p>
           </section>
 
-          <section className="quiz-setup-section">
-            <label className="quiz-topic-input">
-              <span>Focus on a topic, optional</span>
-              <input
-                type="text"
-                value={section}
-                onChange={(event) => setSection(event.target.value)}
-                placeholder="e.g. Laplace transforms or Newton's laws"
-              />
-            </label>
-          </section>
-
           <section className="quiz-mode-grid">
             <button
               type="button"
@@ -186,7 +173,6 @@ export default function TestPage() {
         courseCode={courseCode}
         numQuestions={numQuestions}
         timerMinutes={timerMinutes}
-        section={section}
         cachedQuestions={cachedMCQ}
         onCache={setCachedMCQ}
         attemptMode={attemptMode}
@@ -201,7 +187,6 @@ export default function TestPage() {
         courseCode={courseCode}
         numQuestions={numQuestions}
         timerMinutes={timerMinutes}
-        section={section}
         cachedQuestions={cachedGerman}
         onCache={setCachedGerman}
         attemptMode={attemptMode}
@@ -357,7 +342,6 @@ function MCQQuiz({
   timerMinutes,
   cachedQuestions,
   onCache,
-  section,
   attemptMode,
   onExit,
 }) {
@@ -383,7 +367,6 @@ function MCQQuiz({
           body: JSON.stringify({
             course_code: courseCode,
             num_questions: numQuestions,
-            section: section || null,
             question_type: "mcq",
           }),
         });
@@ -416,7 +399,7 @@ function MCQQuiz({
     return () => {
       cancelled = true;
     };
-  }, [cachedQuestions, courseCode, numQuestions, onCache, section]);
+  }, [cachedQuestions, courseCode, numQuestions, onCache]);
 
   function selectAnswer(option) {
     if (
@@ -586,7 +569,6 @@ function GermanQuiz({
   timerMinutes,
   cachedQuestions,
   onCache,
-  section,
   attemptMode,
   onExit,
 }) {
@@ -612,7 +594,6 @@ function GermanQuiz({
           body: JSON.stringify({
             course_code: courseCode,
             num_questions: numQuestions,
-            section: section || null,
             question_type: "german",
           }),
         });
@@ -645,7 +626,7 @@ function GermanQuiz({
     return () => {
       cancelled = true;
     };
-  }, [cachedQuestions, courseCode, numQuestions, onCache, section]);
+  }, [cachedQuestions, courseCode, numQuestions, onCache]);
 
   const response = responses[current] || {
     input: "",

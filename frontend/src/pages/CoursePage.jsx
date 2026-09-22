@@ -3,11 +3,69 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import AppShell from "../components/AppShell";
 
+function CourseOutline({ outline }) {
+  if (!outline) return null;
+
+  const topics = Array.isArray(outline.ordered_topics)
+    ? outline.ordered_topics
+    : [];
+
+  const facts = [
+    outline.units
+      ? `${outline.units} ${outline.units === 1 ? "unit" : "units"}`
+      : null,
+    outline.semester,
+  ].filter(Boolean);
+
+  return (
+    <section className="course-outline" aria-labelledby="course-outline-title">
+      <div className="course-outline-heading">
+        <div>
+          <p className="swift-eyebrow">Course outline</p>
+          <h2 id="course-outline-title">What you will cover.</h2>
+        </div>
+
+        {facts.length > 0 && (
+          <p className="course-outline-facts">{facts.join(" · ")}</p>
+        )}
+      </div>
+
+      <p className="course-outline-description">
+        {outline.concise_description}
+      </p>
+
+      {topics.length > 0 && (
+        <ol className="course-topic-list">
+          {topics.map((topic, index) => (
+            <li key={`${topic}-${index}`} className="course-topic-item">
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <p>{topic}</p>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      {outline.verification_status === "partially_verified" && (
+        <p className="course-outline-note">
+          This outline is being refined against available departmental material.
+        </p>
+      )}
+
+      {outline.verification_status === "unverified" && (
+        <p className="course-outline-note">
+          This outline is provisional and awaits departmental confirmation.
+        </p>
+      )}
+    </section>
+  );
+}
+
 export default function CoursePage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [course, setCourse] = useState(null);
   const [materials, setMaterials] = useState([]);
+  const [outline, setOutline] = useState(null);
   const [hasPractice, setHasPractice] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -25,14 +83,20 @@ export default function CoursePage() {
 
         if (courseError) throw courseError;
 
-        const [materialsResult, practiceResult] = await Promise.all([
-          supabase
-            .from("materials")
-            .select("*")
-            .eq("course_code", courseData.code)
-            .order("title", { ascending: true }),
-          fetch(`${import.meta.env.VITE_BACKEND_URL}/practice-courses`),
-        ]);
+        const [materialsResult, practiceResult, outlineResult] =
+          await Promise.all([
+            supabase
+              .from("materials")
+              .select("*")
+              .eq("course_code", courseData.code)
+              .order("title", { ascending: true }),
+            fetch(`${import.meta.env.VITE_BACKEND_URL}/practice-courses`),
+            supabase
+              .from("course_outlines")
+              .select("*")
+              .eq("course_code", courseData.code)
+              .maybeSingle(),
+          ]);
 
         if (materialsResult.error) throw materialsResult.error;
 
@@ -49,6 +113,7 @@ export default function CoursePage() {
 
         setCourse(courseData);
         setMaterials(materialsResult.data || []);
+        setOutline(outlineResult.error ? null : outlineResult.data);
         setHasPractice(practiceAvailable);
       } catch (fetchError) {
         console.error("Error fetching course page:", fetchError);
@@ -95,7 +160,9 @@ export default function CoursePage() {
           >
             <span aria-hidden="true">←</span> Back
           </button>
-          <div className="level-message is-error">{error || "Course not found."}</div>
+          <div className="level-message is-error">
+            {error || "Course not found."}
+          </div>
         </div>
       </AppShell>
     );
@@ -150,6 +217,8 @@ export default function CoursePage() {
             </button>
           )}
         </section>
+
+        <CourseOutline outline={outline} />
 
         <section className="course-materials">
           <div className="course-materials-heading">
