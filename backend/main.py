@@ -1,11 +1,14 @@
 import os
 import json
 import random
+import secrets
+from datetime import datetime, timezone
+
 import httpx
 from typing import Optional
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from anthropic import Anthropic
 from dotenv import load_dotenv
 from supabase import create_client
@@ -36,7 +39,11 @@ supabase = create_client(
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def groq_generate(prompt: str, max_tokens: int = 8000) -> str:
+def groq_generate(
+    prompt: str,
+    max_tokens: int = 8000,
+    temperature: float = 0.7,
+) -> str:
     import time
     for attempt in range(3):
         response = httpx.post(
@@ -49,7 +56,7 @@ def groq_generate(prompt: str, max_tokens: int = 8000) -> str:
                 "model": GROQ_MODEL,
                 "messages": [{"role": "user", "content": prompt}],
                 "max_tokens": max_tokens,
-                "temperature": 0.7
+                "temperature": temperature
             },
             timeout=60.0
         )
@@ -78,6 +85,102 @@ def parse_json(text: str) -> dict:
     except json.JSONDecodeError:
         clean = text.replace("```json", "").replace("```", "").strip()
         return json.loads(clean)
+
+
+MATERIAL_CATEGORIES = {
+    "lecture_notes",
+    "slides",
+    "past_questions",
+    "assignments",
+    "practice",
+    "textbooks",
+    "references",
+    "other",
+}
+
+
+def require_admin(x_admin_key: Optional[str]) -> None:
+    expected_key = os.getenv("ADMIN_API_KEY")
+
+    if not expected_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Admin endpoints are unavailable until ADMIN_API_KEY is configured.",
+        )
+
+    if not x_admin_key or not secrets.compare_digest(x_admin_key, expected_key):
+        raise HTTPException(status_code=401, detail="Invalid admin key.")
+
+
+def get_material_sample(material: dict) -> str:
+    cached_text = material.get("extracted_text")
+
+    if cached_text and cached_text.strip():
+        return cached_text[:14000]
+
+    try:
+        return extract_text_from_url(
+            material["file_url"],
+            max_pages=4,
+            max_chars=14000,
+        )
+    except Exception:
+        return ""
+
+
+def classify_material_content(material: dict, text: str) -> dict:
+    prompt = f"""You classify university study documents from their ACTUAL CONTENT.
+
+Choose exactly one category:
+- lecture_notes: teaching notes, lecture handouts, study sessions, or topic explanations
+- slides: presentation slides or slide decks
+- past_questions: previous tests, exams, question compilations, or worked past papers
+- assignments: assignments, coursework, take-home tasks, or submitted task sheets
+- practice: drills, exercises, practice problems, or revision questions not presented as past exams
+- textbooks: a textbook, textbook chapter, or substantial reference book
+- references: external standards, articles, reports, or supporting documents
+- other: content that does not fit the categories above
+
+Rules:
+- Base the choice on the document extract, not merely the filename.
+- Do not invent a category from the course code.
+- Confidence must be an integer from 0 to 100.
+- Evidence must be a short phrase from the extract that supports the category.
+- If the extract is too weak to tell, return "other" with confidence below 50.
+
+Material title, only for context:
+{material.get("title", "")}
+
+Document extract:
+{text[:12000]}
+
+Respond only as JSON with keys: category, confidence, evidence."""
+
+    data = parse_json(
+        groq_generate(
+            prompt,
+            max_tokens=250,
+            temperature=0,
+        )
+    )
+
+    category = str(data.get("category", "other")).strip().lower()
+    confidence = data.get("confidence", 0)
+    evidence = str(data.get("evidence", "")).strip()
+
+    if category not in MATERIAL_CATEGORIES:
+        category = "other"
+
+    try:
+        confidence = int(confidence)
+    except (TypeError, ValueError):
+        confidence = 0
+
+    return {
+        "category": category,
+        "confidence": max(0, min(confidence, 100)),
+        "evidence": evidence[:500],
+    }
 
 
 def get_material_text(material: dict) -> str:
@@ -218,6 +321,11 @@ class CourseQuizRequest(BaseModel):
     question_type: str = "mcq"
 
 
+class MaterialClassificationBatchRequest(BaseModel):
+    limit: int = Field(default=3, ge=1, le=5)
+    retry_failed: bool = False
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.get("/")
@@ -250,8 +358,137 @@ def extract_text(material_id: int):
         supabase.table("materials").update({"extracted_text": text}).eq("id", material_id).execute()
     return {"material_id": material_id, "title": material["title"], "text": text, "cached": False}
 
+@app.get("/admin/material-classification-status")
+def material_classification_status(
+    x_admin_key: Optional[str] = Header(default=None),
+):
+    require_admin(x_admin_key)
+
+    result = supabase.table("materials").select(
+        "classification_status"
+    ).execute()
+
+    counts = {}
+    for material in result.data or []:
+        status = material.get("classification_status", "pending")
+        counts[status] = counts.get(status, 0) + 1
+
+    return {
+        "total_materials": len(result.data or []),
+        "by_status": counts,
+    }
+
+
+@app.post("/admin/classify-materials")
+def classify_materials(
+    request: MaterialClassificationBatchRequest,
+    x_admin_key: Optional[str] = Header(default=None),
+):
+    require_admin(x_admin_key)
+
+    statuses = ["pending"]
+    if request.retry_failed:
+        statuses.append("failed")
+
+    result = (
+        supabase.table("materials")
+        .select("id, title, file_url, extracted_text")
+        .in_("classification_status", statuses)
+        .order("id", desc=False)
+        .limit(request.limit)
+        .execute()
+    )
+
+    materials = result.data or []
+    processed = []
+
+    for material in materials:
+        material_id = material["id"]
+
+        supabase.table("materials").update(
+            {
+                "classification_status": "processing",
+                "classification_error": None,
+            }
+        ).eq("id", material_id).execute()
+
+        try:
+            text = get_material_sample(material)
+
+            if len(text.strip()) < 250:
+                update = {
+                    "category": "uncategorized",
+                    "category_confidence": 0,
+                    "category_source": "unreviewed",
+                    "category_evidence": None,
+                    "classification_status": "needs_review",
+                    "classification_error": (
+                        "No extractable document text was available."
+                    ),
+                    "classified_at": datetime.now(timezone.utc).isoformat(),
+                }
+            else:
+                classification = classify_material_content(material, text)
+                status = (
+                    "auto_classified"
+                    if classification["confidence"] >= 70
+                    else "needs_review"
+                )
+
+                update = {
+                    "category": classification["category"],
+                    "category_confidence": classification["confidence"],
+                    "category_source": "content_analysis",
+                    "category_evidence": classification["evidence"],
+                    "classification_status": status,
+                    "classification_error": None,
+                    "classified_at": datetime.now(timezone.utc).isoformat(),
+                }
+
+            supabase.table("materials").update(update).eq(
+                "id", material_id
+            ).execute()
+
+            processed.append(
+                {
+                    "id": material_id,
+                    "title": material["title"],
+                    "category": update["category"],
+                    "confidence": update["category_confidence"],
+                    "status": update["classification_status"],
+                }
+            )
+        except Exception as error:
+            supabase.table("materials").update(
+                {
+                    "classification_status": "failed",
+                    "classification_error": str(error)[:500],
+                    "classified_at": datetime.now(timezone.utc).isoformat(),
+                }
+            ).eq("id", material_id).execute()
+
+            processed.append(
+                {
+                    "id": material_id,
+                    "title": material["title"],
+                    "status": "failed",
+                    "error": str(error)[:180],
+                }
+            )
+
+    return {
+        "requested": request.limit,
+        "processed_count": len(processed),
+        "processed": processed,
+    }
+
+
 @app.post("/admin/generate-bank")
-def generate_question_bank(request: QuestionBankRequest):
+def generate_question_bank(
+    request: QuestionBankRequest,
+    x_admin_key: Optional[str] = Header(default=None),
+):
+    require_admin(x_admin_key)
     result = supabase.table("materials").select("*").eq("course_code", request.course_code).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="No materials found for this course")
