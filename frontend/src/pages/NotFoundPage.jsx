@@ -42,7 +42,7 @@ export default function NotFoundPage() {
     }
 
     if (game.current.lift < 1.5) {
-      game.current.velocity = 72;
+      game.current.velocity = 520;
     }
   }
 
@@ -73,7 +73,7 @@ export default function NotFoundPage() {
       lastFrame.current = timestamp;
 
       const currentGame = game.current;
-      currentGame.velocity -= 235 * delta;
+      currentGame.velocity -= 1400 * delta;
       currentGame.lift = Math.max(
         0,
         currentGame.lift + currentGame.velocity * delta
@@ -94,7 +94,7 @@ export default function NotFoundPage() {
       const hitsObstacle =
         currentGame.obstacle < 25 &&
         currentGame.obstacle > 8 &&
-        currentGame.lift < 13;
+        currentGame.lift < 58;
 
       if (hitsObstacle) {
         setBestScore((currentBest) =>
@@ -183,7 +183,7 @@ export default function NotFoundPage() {
 
             <div
               className="swift-sprint-runner"
-              style={{ transform: `translateY(-${runnerLift}%)` }}
+              style={{ transform: `translateY(-${runnerLift}px)` }}
               aria-hidden="true"
             >
               S
