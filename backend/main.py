@@ -3,6 +3,7 @@ import json
 import random
 import base64
 import secrets
+import time
 from datetime import datetime, timezone
 
 import httpx
@@ -114,6 +115,72 @@ def groq_generate_vision(
     return response.json()["choices"][0]["message"]["content"]
 
 
+def classify_with_groq(
+    prompt: str,
+    image_bytes: Optional[bytes] = None,
+) -> dict:
+    """Get a structured document classification with cautious retry behaviour."""
+    for attempt in range(5):
+        if image_bytes:
+            image_data = base64.b64encode(image_bytes).decode("ascii")
+            model = GROQ_VISION_MODEL
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{image_data}"
+                            },
+                        },
+                    ],
+                }
+            ]
+        else:
+            model = GROQ_MODEL
+            messages = [{"role": "user", "content": prompt}]
+
+        response = httpx.post(
+            GROQ_URL,
+            headers={
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model,
+                "messages": messages,
+                "max_tokens": 350,
+                "temperature": 0,
+                "response_format": {"type": "json_object"},
+            },
+            timeout=90.0,
+        )
+
+        if response.status_code == 429 and attempt < 4:
+            time.sleep(20)
+            continue
+
+        if not response.is_success:
+            raise RuntimeError(
+                f"Groq request failed ({response.status_code}): "
+                f"{response.text[:500]}"
+            )
+
+        try:
+            content = response.json()["choices"][0]["message"]["content"]
+            return parse_json(content)
+        except (KeyError, IndexError, TypeError, json.JSONDecodeError) as error:
+            if attempt == 4:
+                raise RuntimeError(
+                    f"Groq returned invalid classification JSON: {error}"
+                ) from error
+            time.sleep(3)
+
+    raise RuntimeError("Groq classification retries were exhausted.")
+
+
 def claude_generate(prompt: str, max_tokens: int = 8000) -> str:
     message = anthropic_client.messages.create(
         model="claude-sonnet-4-20250514",
@@ -202,13 +269,8 @@ Document extract:
 
 Respond only as JSON with keys: category, confidence, evidence."""
 
-    data = parse_json(
-        groq_generate(
-            prompt,
-            max_tokens=250,
-            temperature=0,
-        )
-    )
+    time.sleep(3)
+    data = classify_with_groq(prompt)
 
     category = str(data.get("category", "other")).strip().lower()
     confidence = data.get("confidence", 0)
@@ -251,7 +313,8 @@ Material title, only for context:
 
 Respond only as JSON with keys: category, confidence, evidence."""
 
-    data = parse_json(groq_generate_vision(prompt, image_bytes))
+    time.sleep(3)
+    data = classify_with_groq(prompt, image_bytes=image_bytes)
 
     category = str(data.get("category", "other")).strip().lower()
     confidence = data.get("confidence", 0)
