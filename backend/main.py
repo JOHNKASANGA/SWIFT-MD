@@ -228,7 +228,7 @@ def get_material_sample(material: dict) -> dict:
 
     if cached_text and cached_text.strip():
         return {
-            "text": cached_text[:14000],
+            "text": cached_text[:6000],
             "image_bytes": b"",
             "file_type": "cached_text",
             "error": None,
@@ -237,7 +237,7 @@ def get_material_sample(material: dict) -> dict:
     return extract_material_sample_from_url(
         material["file_url"],
         max_pages=4,
-        max_chars=14000,
+        max_chars=6000,
     )
 
 
@@ -265,11 +265,11 @@ Material title, only for context:
 {material.get("title", "")}
 
 Document extract:
-{text[:12000]}
+{text[:6000]}
 
 Respond only as JSON with keys: category, confidence, evidence."""
 
-    time.sleep(3)
+    time.sleep(5)
     data = classify_with_groq(prompt)
 
     category = str(data.get("category", "other")).strip().lower()
@@ -313,7 +313,7 @@ Material title, only for context:
 
 Respond only as JSON with keys: category, confidence, evidence."""
 
-    time.sleep(3)
+    time.sleep(5)
     data = classify_with_groq(prompt, image_bytes=image_bytes)
 
     category = str(data.get("category", "other")).strip().lower()
