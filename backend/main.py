@@ -38,6 +38,10 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = "openai/gpt-oss-20b"
 GROQ_VISION_MODEL = "qwen/qwen3.8-27b"
 
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+
 supabase = create_client(
     os.getenv("SUPABASE_URL"),
     os.getenv("SUPABASE_SERVICE_KEY")
@@ -113,6 +117,94 @@ def groq_generate_vision(
     )
     response.raise_for_status()
     return response.json()["choices"][0]["message"]["content"]
+
+
+CLASSIFICATION_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "category": {
+            "type": "string",
+            "enum": [
+                "lecture_notes",
+                "slides",
+                "past_questions",
+                "assignments",
+                "practice",
+                "textbooks",
+                "references",
+                "other",
+            ],
+        },
+        "confidence": {"type": "integer"},
+        "evidence": {"type": "string"},
+    },
+    "required": ["category", "confidence", "evidence"],
+}
+
+
+def classify_with_gemini(
+    prompt: str,
+    image_bytes: Optional[bytes] = None,
+) -> dict:
+    """Classify one material with Gemini structured JSON output."""
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY is not configured.")
+
+    parts = [{"text": prompt}]
+
+    if image_bytes:
+        image_data = base64.b64encode(image_bytes).decode("ascii")
+        parts.append(
+            {
+                "inlineData": {
+                    "mimeType": "image/png",
+                    "data": image_data,
+                }
+            }
+        )
+
+    response = httpx.post(
+        f"{GEMINI_URL}/{GEMINI_MODEL}:generateContent",
+        headers={
+            "x-goog-api-key": GEMINI_API_KEY,
+            "Content-Type": "application/json",
+        },
+        json={
+            "contents": [{"role": "user", "parts": parts}],
+            "generationConfig": {
+                "temperature": 0,
+                "maxOutputTokens": 220,
+                "responseMimeType": "application/json",
+                "responseJsonSchema": CLASSIFICATION_JSON_SCHEMA,
+            },
+        },
+        timeout=90.0,
+    )
+
+    if not response.is_success:
+        raise RuntimeError(
+            f"Gemini request failed ({response.status_code}): "
+            f"{response.text[:500]}"
+        )
+
+    try:
+        content = response.json()["candidates"][0]["content"]["parts"][0]["text"]
+        return parse_json(content)
+    except (KeyError, IndexError, TypeError, json.JSONDecodeError) as error:
+        raise RuntimeError(
+            f"Gemini returned invalid classification JSON: {error}"
+        ) from error
+
+
+def classify_with_provider(
+    prompt: str,
+    image_bytes: Optional[bytes] = None,
+) -> dict:
+    """Use Gemini for classification when its API key is configured."""
+    if GEMINI_API_KEY:
+        return classify_with_gemini(prompt, image_bytes=image_bytes)
+
+    return classify_with_groq(prompt, image_bytes=image_bytes)
 
 
 def classify_with_groq(
@@ -269,8 +361,7 @@ Document extract:
 
 Respond only as JSON with keys: category, confidence, evidence."""
 
-    time.sleep(2)
-    data = classify_with_groq(prompt)
+    data = classify_with_provider(prompt)
 
     category = str(data.get("category", "other")).strip().lower()
     confidence = data.get("confidence", 0)
@@ -313,8 +404,7 @@ Material title, only for context:
 
 Respond only as JSON with keys: category, confidence, evidence."""
 
-    time.sleep(2)
-    data = classify_with_groq(prompt, image_bytes=image_bytes)
+    data = classify_with_provider(prompt, image_bytes=image_bytes)
 
     category = str(data.get("category", "other")).strip().lower()
     confidence = data.get("confidence", 0)
