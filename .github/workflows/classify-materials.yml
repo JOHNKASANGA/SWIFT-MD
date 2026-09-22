@@ -1,0 +1,87 @@
+name: Classify Swift materials
+
+on:
+  workflow_dispatch:
+    inputs:
+      retry_failed:
+        description: Retry files previously marked failed
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    - cron: "17,47 * * * *"
+
+concurrency:
+  group: swift-material-classifier
+  cancel-in-progress: false
+
+jobs:
+  classify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      BACKEND_URL: https://swift-md-backend.onrender.com
+      SWIFT_ADMIN_KEY: ${{ secrets.SWIFT_ADMIN_KEY }}
+      RETRY_FAILED: ${{ inputs.retry_failed || 'false' }}
+
+    steps:
+      - name: Process pending materials
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          if [ -z "$SWIFT_ADMIN_KEY" ]; then
+            echo "Missing GitHub Actions secret: SWIFT_ADMIN_KEY"
+            exit 1
+          fi
+
+          if [ "$RETRY_FAILED" = "true" ]; then
+            payload='{"limit":1,"retry_failed":true}'
+          else
+            payload='{"limit":1}'
+          fi
+
+          consecutive_errors=0
+
+          while true; do
+            response_file="$(mktemp)"
+
+            status_code="$(
+              curl -sS --max-time 180 \
+                -o "$response_file" \
+                -w "%{http_code}" \
+                -X POST "$BACKEND_URL/admin/classify-materials" \
+                -H "Content-Type: application/json" \
+                -H "x-admin-key: $SWIFT_ADMIN_KEY" \
+                --data "$payload" \
+              || true
+            )"
+
+            response="$(cat "$response_file")"
+            rm -f "$response_file"
+
+            if [ "$status_code" != "200" ]; then
+              consecutive_errors=$((consecutive_errors + 1))
+              echo "Request error $consecutive_errors of 10. HTTP $status_code: $response"
+
+              if [ "$consecutive_errors" -ge 10 ]; then
+                echo "Stopping after 10 consecutive request errors."
+                exit 1
+              fi
+
+              sleep 30
+              continue
+            fi
+
+            consecutive_errors=0
+            echo "$response" | jq -c .
+
+            processed_count="$(printf '%s' "$response" | jq -r '.processed_count // 0')"
+
+            if [ "$processed_count" = "0" ]; then
+              echo "No matching materials remain."
+              exit 0
+            fi
+
+            sleep 1
+          done
