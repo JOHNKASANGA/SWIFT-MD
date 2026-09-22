@@ -80,7 +80,7 @@ def download_file(file_url: str) -> tuple[bytes, str]:
 
     if (
         b"Google Drive - Virus scan warning" in response.content
-        or b"confirm=" in str(response.url)
+        or "confirm=" in str(response.url)
     ):
         confirm_match = re.search(r'confirm=([^&"]+)', str(response.url))
         file_id_match = re.search(r"id=([^&]+)", direct_url)
