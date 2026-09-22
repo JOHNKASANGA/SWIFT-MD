@@ -1,6 +1,7 @@
 import os
 import json
 import random
+import base64
 import secrets
 from datetime import datetime, timezone
 
@@ -12,7 +13,11 @@ from pydantic import BaseModel, Field
 from anthropic import Anthropic
 from dotenv import load_dotenv
 from supabase import create_client
-from pdf_utils import extract_text_from_url, chunk_text
+from pdf_utils import (
+    chunk_text,
+    extract_material_sample_from_url,
+    extract_text_from_url,
+)
 
 load_dotenv()
 
@@ -30,6 +35,7 @@ anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 
 supabase = create_client(
     os.getenv("SUPABASE_URL"),
@@ -68,6 +74,44 @@ def groq_generate(
                 response.raise_for_status()
         response.raise_for_status()
         return response.json()["choices"][0]["message"]["content"]
+
+
+def groq_generate_vision(
+    prompt: str,
+    image_bytes: bytes,
+    max_tokens: int = 350,
+) -> str:
+    image_data = base64.b64encode(image_bytes).decode("ascii")
+
+    response = httpx.post(
+        GROQ_URL,
+        headers={
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": GROQ_VISION_MODEL,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{image_data}"
+                            },
+                        },
+                    ],
+                }
+            ],
+            "max_tokens": max_tokens,
+            "temperature": 0,
+        },
+        timeout=60.0,
+    )
+    response.raise_for_status()
+    return response.json()["choices"][0]["message"]["content"]
 
 
 def claude_generate(prompt: str, max_tokens: int = 8000) -> str:
@@ -112,20 +156,22 @@ def require_admin(x_admin_key: Optional[str]) -> None:
         raise HTTPException(status_code=401, detail="Invalid admin key.")
 
 
-def get_material_sample(material: dict) -> str:
+def get_material_sample(material: dict) -> dict:
     cached_text = material.get("extracted_text")
 
     if cached_text and cached_text.strip():
-        return cached_text[:14000]
+        return {
+            "text": cached_text[:14000],
+            "image_bytes": b"",
+            "file_type": "cached_text",
+            "error": None,
+        }
 
-    try:
-        return extract_text_from_url(
-            material["file_url"],
-            max_pages=4,
-            max_chars=14000,
-        )
-    except Exception:
-        return ""
+    return extract_material_sample_from_url(
+        material["file_url"],
+        max_pages=4,
+        max_chars=14000,
+    )
 
 
 def classify_material_content(material: dict, text: str) -> dict:
@@ -163,6 +209,49 @@ Respond only as JSON with keys: category, confidence, evidence."""
             temperature=0,
         )
     )
+
+    category = str(data.get("category", "other")).strip().lower()
+    confidence = data.get("confidence", 0)
+    evidence = str(data.get("evidence", "")).strip()
+
+    if category not in MATERIAL_CATEGORIES:
+        category = "other"
+
+    try:
+        confidence = int(confidence)
+    except (TypeError, ValueError):
+        confidence = 0
+
+    return {
+        "category": category,
+        "confidence": max(0, min(confidence, 100)),
+        "evidence": evidence[:500],
+    }
+
+
+def classify_material_image(material: dict, image_bytes: bytes) -> dict:
+    prompt = f"""You classify a university study document from its page image.
+
+Choose exactly one category:
+- lecture_notes
+- slides
+- past_questions
+- assignments
+- practice
+- textbooks
+- references
+- other
+
+Use visible document content, not only the filename. Confidence must be an
+integer from 0 to 100. Evidence must be a short visible phrase supporting the
+category. If the page is unreadable, choose other with confidence below 50.
+
+Material title, only for context:
+{material.get("title", "")}
+
+Respond only as JSON with keys: category, confidence, evidence."""
+
+    data = parse_json(groq_generate_vision(prompt, image_bytes))
 
     category = str(data.get("category", "other")).strip().lower()
     confidence = data.get("confidence", 0)
@@ -338,12 +427,26 @@ def health():
 
 @app.post("/generate-greeting")
 def generate_greeting(request: GreetingRequest):
-    message = anthropic_client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=100,
-        messages=[{"role": "user", "content": f"Generate a short, witty, personalized greeting for a university student named {request.username}. Make it fun and motivating. Just the greeting, nothing else. Keep it to 2 sentences max — one short heading greeting and one witty line."}]
+    prompt = (
+        "Generate a short, witty, personalised greeting for a university "
+        f"student named {request.username}. Make it fun and motivating. "
+        "Use at most two sentences: one short heading-style greeting and "
+        "one useful study line. Return only the greeting."
     )
-    return {"greeting": message.content[0].text, "username": request.username}
+
+    try:
+        greeting = groq_generate(
+            prompt,
+            max_tokens=100,
+            temperature=0.7,
+        )
+    except Exception:
+        greeting = (
+            f"Welcome back, {request.username}. "
+            "Pick one useful thing and make progress on it today."
+        )
+
+    return {"greeting": greeting.strip(), "username": request.username}
 
 @app.post("/extract-text/{material_id}")
 def extract_text(material_id: int):
@@ -413,21 +516,11 @@ def classify_materials(
         ).eq("id", material_id).execute()
 
         try:
-            text = get_material_sample(material)
+            sample = get_material_sample(material)
+            text = sample.get("text", "")
+            image_bytes = sample.get("image_bytes", b"")
 
-            if len(text.strip()) < 250:
-                update = {
-                    "category": "uncategorized",
-                    "category_confidence": 0,
-                    "category_source": "unreviewed",
-                    "category_evidence": None,
-                    "classification_status": "needs_review",
-                    "classification_error": (
-                        "No extractable document text was available."
-                    ),
-                    "classified_at": datetime.now(timezone.utc).isoformat(),
-                }
-            else:
+            if len(text.strip()) >= 250:
                 classification = classify_material_content(material, text)
                 status = (
                     "auto_classified"
@@ -442,6 +535,36 @@ def classify_materials(
                     "category_evidence": classification["evidence"],
                     "classification_status": status,
                     "classification_error": None,
+                    "classified_at": datetime.now(timezone.utc).isoformat(),
+                }
+            elif image_bytes:
+                classification = classify_material_image(material, image_bytes)
+                status = (
+                    "auto_classified"
+                    if classification["confidence"] >= 70
+                    else "needs_review"
+                )
+
+                update = {
+                    "category": classification["category"],
+                    "category_confidence": classification["confidence"],
+                    "category_source": "content_analysis",
+                    "category_evidence": classification["evidence"],
+                    "classification_status": status,
+                    "classification_error": None,
+                    "classified_at": datetime.now(timezone.utc).isoformat(),
+                }
+            else:
+                update = {
+                    "category": "uncategorized",
+                    "category_confidence": 0,
+                    "category_source": "unreviewed",
+                    "category_evidence": None,
+                    "classification_status": "needs_review",
+                    "classification_error": (
+                        sample.get("error")
+                        or "No extractable document text or OCR image was available."
+                    )[:500],
                     "classified_at": datetime.now(timezone.utc).isoformat(),
                 }
 

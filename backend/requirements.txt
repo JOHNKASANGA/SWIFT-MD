@@ -61,3 +61,7 @@ uvicorn==0.44.0
 websockets==15.0.1
 yarl==1.23.0
 zstandard==0.25.0
+
+python-pptx>=1.0.2
+
+PyMuPDF>=1.26.0
