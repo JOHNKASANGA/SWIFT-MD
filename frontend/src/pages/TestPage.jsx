@@ -1,10 +1,16 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { motion } from "framer-motion";
-import AnimatedBackground from "../components/AnimatedBackground";
+import { supabase } from "../lib/supabase";
 import MathText from "../components/MathText";
 import MathToolbar from "../components/MathToolbar";
-import BookLoader from "../components/BookLoader";
+
+const TIMER_OPTIONS = [
+  { label: "No timer", value: 0 },
+  { label: "15 min", value: 15 },
+  { label: "30 min", value: 30 },
+  { label: "45 min", value: 45 },
+  { label: "60 min", value: 60 },
+];
 
 export default function TestPage() {
   const { courseCode: rawCourseCode } = useParams();
@@ -12,172 +18,329 @@ export default function TestPage() {
   const navigate = useNavigate();
   const [mode, setMode] = useState(null);
   const [numQuestions, setNumQuestions] = useState(10);
+  const [timerMinutes, setTimerMinutes] = useState(0);
+  const [section, setSection] = useState("");
   const [cachedMCQ, setCachedMCQ] = useState(null);
   const [cachedGerman, setCachedGerman] = useState(null);
-  const [section, setSection] = useState("");
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    navigate("/");
+  }
 
   if (!mode) {
     return (
-      <div className="min-h-screen bg-gray-950 px-6 py-10 max-w-2xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-4 mb-12"
-        >
-          <button
-            onClick={() => navigate(-1)}
-            className="text-gray-500 hover:text-white text-sm font-bold transition-colors"
-          >
-            ← Back
-          </button>
-        </motion.div>
+      <div className="quiz-setup-page">
+        <QuizSetupHeader
+          courseCode={courseCode}
+          onExit={() => navigate(-1)}
+          onSignOut={handleSignOut}
+        />
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="mb-8"
-        >
-          <h1 className="text-white font-black text-3xl mb-2">Test Yourself</h1>
-          <p className="text-gray-500 text-sm">Choose a quiz mode to begin.</p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-          className="mb-8"
-        >
-          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">
-            Number of Questions
-          </p>
-          <div className="flex gap-3">
-            {[5, 10, 20, 50].map((n) => (
-              <button
-                key={n}
-                onClick={() => {
-                  setNumQuestions(n);
-                  setCachedMCQ(null);
-                  setCachedGerman(null);
-                }}
-                className={`px-4 py-2 rounded-xl text-sm font-black transition-colors ${
-                  numQuestions === n
-                    ? "bg-white text-gray-950"
-                    : "bg-gray-900 border border-gray-800 text-gray-400 hover:border-gray-600"
-                }`}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="mb-8"
-        >
-          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">
-            Focus on a topic (optional)
-          </p>
-          <input
-            type="text"
-            value={section}
-            onChange={(e) => setSection(e.target.value)}
-            placeholder="e.g. Laplace transforms, Newton's laws..."
-            className="w-full bg-gray-900 border border-gray-800 text-white placeholder-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gray-600 transition-colors"
-          />
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="flex flex-col gap-4"
-        >
-          <button
-            onClick={() => setMode("mcq")}
-            className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-left hover:border-gray-600 transition-colors"
-          >
-            <p className="text-white font-black text-lg mb-1">MCQ</p>
-            <p className="text-gray-500 text-sm">
-              Multiple choice questions generated from your material.
+        <main className="quiz-setup-main">
+          <section className="quiz-setup-intro">
+            <p className="swift-eyebrow">Curated practice</p>
+            <h1>Set up your quiz.</h1>
+            <p>
+              Choose the number of questions, an optional countdown, and a mode.
+              You can jump to any question once you begin.
             </p>
-          </button>
+          </section>
 
-          <button
-            onClick={() => setMode("german")}
-            className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-left hover:border-gray-600 transition-colors"
-          >
-            <p className="text-white font-black text-lg mb-1">
-              Fill in the Blank
-            </p>
-            <p className="text-gray-500 text-sm">
-              Recall answers from memory. No options given.
-            </p>
-          </button>
+          <section className="quiz-setup-section">
+            <p className="quiz-setup-label">Number of questions</p>
+            <div className="quiz-option-row">
+              {[5, 10, 20, 50].map((count) => (
+                <button
+                  key={count}
+                  type="button"
+                  className={
+                    numQuestions === count
+                      ? "quiz-choice-button is-selected"
+                      : "quiz-choice-button"
+                  }
+                  onClick={() => {
+                    setNumQuestions(count);
+                    setCachedMCQ(null);
+                    setCachedGerman(null);
+                  }}
+                >
+                  {count}
+                </button>
+              ))}
+            </div>
+          </section>
 
-          <button
-            onClick={() => setMode("theory")}
-            className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-left hover:border-gray-600 transition-colors"
-          >
-            <p className="text-white font-black text-lg mb-1">Theory</p>
-            <p className="text-gray-500 text-sm">
-              Write your answer. AI grades and gives feedback.
+          <section className="quiz-setup-section">
+            <p className="quiz-setup-label">Countdown timer</p>
+            <div className="quiz-option-row">
+              {TIMER_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={
+                    timerMinutes === option.value
+                      ? "quiz-choice-button is-selected"
+                      : "quiz-choice-button"
+                  }
+                  onClick={() => setTimerMinutes(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <p className="quiz-setup-hint">
+              A timer is optional. When it ends, Swift submits the quiz with
+              whatever you have answered.
             </p>
-          </button>
-        </motion.div>
+          </section>
+
+          <section className="quiz-setup-section">
+            <label className="quiz-topic-input">
+              <span>Focus on a topic, optional</span>
+              <input
+                type="text"
+                value={section}
+                onChange={(event) => setSection(event.target.value)}
+                placeholder="e.g. Laplace transforms or Newton's laws"
+              />
+            </label>
+          </section>
+
+          <section className="quiz-mode-grid">
+            <button
+              type="button"
+              className="quiz-mode-card"
+              onClick={() => setMode("mcq")}
+            >
+              <span>01</span>
+              <strong>Multiple choice</strong>
+              <p>Select one answer, see feedback, and review every question.</p>
+              <small>Start MCQ →</small>
+            </button>
+
+            <button
+              type="button"
+              className="quiz-mode-card"
+              onClick={() => setMode("german")}
+            >
+              <span>02</span>
+              <strong>Fill in the blank</strong>
+              <p>Recall key terms, formulas, and concepts without options.</p>
+              <small>Start recall quiz →</small>
+            </button>
+
+            <button
+              type="button"
+              className="quiz-mode-card quiz-mode-card-theory"
+              onClick={() => setMode("theory")}
+            >
+              <span>03</span>
+              <strong>Theory practice</strong>
+              <p>Write longer answers and receive the current feedback flow.</p>
+              <small>Open theory →</small>
+            </button>
+          </section>
+        </main>
       </div>
     );
   }
 
-  if (mode === "mcq")
+  if (mode === "mcq") {
     return (
       <MCQQuiz
         courseCode={courseCode}
-        onBack={() => setMode(null)}
         numQuestions={numQuestions}
+        timerMinutes={timerMinutes}
+        section={section}
         cachedQuestions={cachedMCQ}
         onCache={setCachedMCQ}
-        section={section}
+        onExit={() => setMode(null)}
       />
     );
-  if (mode === "german")
+  }
+
+  if (mode === "german") {
     return (
       <GermanQuiz
         courseCode={courseCode}
-        onBack={() => setMode(null)}
         numQuestions={numQuestions}
+        timerMinutes={timerMinutes}
+        section={section}
         cachedQuestions={cachedGerman}
         onCache={setCachedGerman}
-        section={section}
+        onExit={() => setMode(null)}
       />
     );
-  if (mode === "theory")
-    return <TheoryQuiz courseCode={courseCode} onBack={() => setMode(null)} />;
+  }
+
+  return <TheoryQuiz courseCode={courseCode} onExit={() => setMode(null)} />;
 }
 
-// ─── MCQ Quiz ────────────────────────────────────────────────────────────────
+function QuizSetupHeader({ courseCode, onExit, onSignOut }) {
+  return (
+    <header className="quiz-focus-header">
+      <button type="button" className="swift-brand" onClick={onExit}>
+        <span className="swift-brand-mark">S</span>
+        <span>Swift</span>
+      </button>
+
+      <p>{courseCode}</p>
+
+      <button type="button" className="quiz-exit-button" onClick={onSignOut}>
+        Sign out
+      </button>
+    </header>
+  );
+}
+
+function QuizTimer({ minutes, onExpire }) {
+  const [remainingSeconds, setRemainingSeconds] = useState(minutes * 60);
+  const expiredRef = useRef(false);
+  const expireCallbackRef = useRef(onExpire);
+
+  useEffect(() => {
+    expireCallbackRef.current = onExpire;
+  }, [onExpire]);
+
+  useEffect(() => {
+    if (!minutes) return undefined;
+
+    expiredRef.current = false;
+    const deadline = Date.now() + minutes * 60 * 1000;
+
+    function updateTime() {
+      const nextRemaining = Math.max(
+        0,
+        Math.ceil((deadline - Date.now()) / 1000)
+      );
+
+      setRemainingSeconds(nextRemaining);
+
+      if (nextRemaining === 0 && !expiredRef.current) {
+        expiredRef.current = true;
+        expireCallbackRef.current();
+      }
+    }
+
+    updateTime();
+    const interval = setInterval(updateTime, 500);
+
+    return () => clearInterval(interval);
+  }, [minutes]);
+
+  if (!minutes) return null;
+
+  const minutesLeft = Math.floor(remainingSeconds / 60);
+  const secondsLeft = remainingSeconds % 60;
+  const isLow = remainingSeconds <= 60;
+
+  return (
+    <span className={isLow ? "quiz-timer is-low" : "quiz-timer"}>
+      {String(minutesLeft).padStart(2, "0")}:{String(secondsLeft).padStart(2, "0")}
+    </span>
+  );
+}
+
+function QuestionNavigator({
+  total,
+  current,
+  isAnswered,
+  flagged,
+  onJump,
+  onToggleFlag,
+}) {
+  return (
+    <section className="question-navigator" aria-label="Question navigator">
+      <div className="question-navigator-heading">
+        <p>Questions</p>
+        <button type="button" onClick={() => onToggleFlag(current)}>
+          {flagged[current] ? "Remove flag" : "Flag for review"}
+        </button>
+      </div>
+
+      <div className="question-grid">
+        {Array.from({ length: total }, (_, index) => {
+          const classes = [
+            "question-grid-button",
+            current === index ? "is-current" : "",
+            isAnswered(index) ? "is-answered" : "",
+            flagged[index] ? "is-flagged" : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
+
+          return (
+            <button
+              key={index}
+              type="button"
+              className={classes}
+              onClick={() => onJump(index)}
+              aria-label={`Go to question ${index + 1}`}
+            >
+              {index + 1}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="question-key">
+        <span><i className="is-current" /> Current</span>
+        <span><i className="is-answered" /> Answered</span>
+        <span><i className="is-flagged" /> Flagged</span>
+      </div>
+    </section>
+  );
+}
+
+function QuizFocusHeader({ courseCode, current, total, timerMinutes, onExit, onExpire }) {
+  return (
+    <header className="quiz-focus-header">
+      <button type="button" className="swift-brand" onClick={onExit}>
+        <span className="swift-brand-mark">S</span>
+        <span>Swift</span>
+      </button>
+
+      <p>
+        {courseCode} <span>·</span> Question {current + 1} of {total}
+      </p>
+
+      <div className="quiz-header-right">
+        <QuizTimer minutes={timerMinutes} onExpire={onExpire} />
+        <button type="button" className="quiz-exit-button" onClick={onExit}>
+          Exit
+        </button>
+      </div>
+    </header>
+  );
+}
+
 function MCQQuiz({
   courseCode,
-  onBack,
   numQuestions,
+  timerMinutes,
   cachedQuestions,
   onCache,
   section,
+  onExit,
 }) {
   const [questions, setQuestions] = useState(cachedQuestions || []);
   const [current, setCurrent] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState({});
+  const [flagged, setFlagged] = useState({});
   const [loading, setLoading] = useState(!cachedQuestions);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
 
-  useState(() => {
-    if (cachedQuestions) return;
+  useEffect(() => {
+    if (cachedQuestions) return undefined;
+
+    let cancelled = false;
+
     async function fetchQuestions() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/quiz`, {
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/quiz`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -187,166 +350,193 @@ function MCQQuiz({
             question_type: "mcq",
           }),
         });
-        const data = await res.json();
-        setQuestions(data.questions);
-        onCache(data.questions);
-      } catch {
-        setError("Failed to generate questions. Try again.");
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.detail || "Questions could not be loaded.");
+        }
+
+        if (!data.questions?.length) {
+          throw new Error("This course does not have MCQ questions yet.");
+        }
+
+        if (!cancelled) {
+          setQuestions(data.questions);
+          onCache(data.questions);
+        }
+      } catch (fetchError) {
+        if (!cancelled) {
+          setError(fetchError.message || "Questions could not be loaded.");
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
+
     fetchQuestions();
-  }, []);
 
-  function handleSelect(option) {
+    return () => {
+      cancelled = true;
+    };
+  }, [cachedQuestions, courseCode, numQuestions, onCache, section]);
+
+  function selectAnswer(option) {
     if (selectedAnswers[current] !== undefined) return;
-    setSelectedAnswers({ ...selectedAnswers, [current]: option });
+
+    setSelectedAnswers((answers) => ({ ...answers, [current]: option }));
   }
 
-  function handleBack() {
-    if (current > 0) {
-      setCurrent(current - 1);
-    }
+  function finishQuiz(wasTimedOut = false) {
+    setTimedOut(wasTimedOut);
+    setDone(true);
   }
 
-  function handleNext() {
-    if (current + 1 >= questions.length) {
-      setDone(true);
-    } else {
-      setCurrent(current + 1);
-    }
-  }
-
-  if (loading) return <LoadingScreen />;
-  if (error) return <ErrorScreen message={error} onBack={onBack} />;
+  if (loading) return <LoadingScreen label="Loading curated questions..." />;
+  if (error) return <QuizError message={error} onExit={onExit} />;
 
   if (done) {
-    const answers = questions.map((q, i) => ({
-      question: q.question,
-      selected: selectedAnswers[i],
-      correct: q.correct_answer,
-      isCorrect: selectedAnswers[i] === q.correct_answer,
+    const answers = questions.map((question, index) => ({
+      question: question.question,
+      selected: selectedAnswers[index],
+      correct: question.correct_answer,
+      isCorrect: selectedAnswers[index] === question.correct_answer,
     }));
-    const score = answers.filter((a) => a.isCorrect).length;
+
     return (
       <ResultsScreen
-        score={score}
-        total={questions.length}
         answers={answers}
-        onBack={onBack}
-        showCorrect
+        onExit={onExit}
+        timedOut={timedOut}
+        flaggedCount={Object.keys(flagged).filter((index) => flagged[index]).length}
       />
     );
   }
 
-  const q = questions[current];
+  const question = questions[current];
   const selected = selectedAnswers[current];
 
   return (
-    <div className="min-h-screen bg-gray-950 px-6 py-10 max-w-2xl mx-auto">
-      <div className="flex items-center justify-between mb-12">
-        <button
-          onClick={onBack}
-          className="text-gray-500 hover:text-white text-sm font-bold transition-colors"
-        >
-          ← Back
-        </button>
-        <span className="text-gray-500 text-sm font-bold">
-          {current + 1} / {questions.length}
-        </span>
-      </div>
+    <div className="quiz-page">
+      <QuizFocusHeader
+        courseCode={courseCode}
+        current={current}
+        total={questions.length}
+        timerMinutes={timerMinutes}
+        onExit={onExit}
+        onExpire={() => finishQuiz(true)}
+      />
 
-      <motion.div
-        key={current}
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        className="mb-8"
-      >
-        <p className="text-white font-black text-xl mb-6">
-          <MathText text={q.question} />
-        </p>
-        <div className="flex flex-col gap-3">
-          {Object.entries(q.options).map(([key, value]) => {
-            let style = "bg-gray-900 border border-gray-800 text-white";
-            if (selected) {
-              if (key === q.correct_answer)
-                style = "bg-green-900 border border-green-600 text-white";
-              else if (key === selected)
-                style = "bg-red-900 border border-red-600 text-white";
-              else style = "bg-gray-900 border border-gray-800 text-gray-600";
-            }
-            return (
+      <main className="quiz-main">
+        <section className="quiz-question-panel">
+          <p className="quiz-question-label">Multiple choice</p>
+          <h1><MathText text={question.question} /></h1>
+
+          <div className="quiz-options">
+            {Object.entries(question.options).map(([key, value]) => {
+              const classes = ["quiz-option"];
+              if (selected !== undefined) {
+                if (key === question.correct_answer) classes.push("is-correct");
+                else if (key === selected) classes.push("is-wrong");
+                else classes.push("is-muted");
+              }
+
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={classes.join(" ")}
+                  onClick={() => selectAnswer(key)}
+                  disabled={selected !== undefined}
+                >
+                  <span>{key}</span>
+                  <MathText text={value} />
+                </button>
+              );
+            })}
+          </div>
+
+          {selected !== undefined && question.explanation && (
+            <div className="quiz-explanation">
+              <b>{selected === question.correct_answer ? "Correct." : "Review this."}</b>
+              <p>{question.explanation}</p>
+            </div>
+          )}
+
+          <div className="quiz-controls">
+            <button
+              type="button"
+              className="quiz-previous-button"
+              disabled={current === 0}
+              onClick={() => setCurrent((index) => Math.max(0, index - 1))}
+            >
+              ← Previous
+            </button>
+
+            {current < questions.length - 1 ? (
               <button
-                key={key}
-                onClick={() => handleSelect(key)}
-                className={`${style} rounded-xl px-5 py-4 text-left text-sm font-bold transition-colors`}
+                type="button"
+                className="swift-primary-button"
+                onClick={() => setCurrent((index) => index + 1)}
               >
-                <span className="text-gray-400 mr-3">{key}.</span>
-                <MathText text={value} />
+                Next question <span aria-hidden="true">→</span>
               </button>
-            );
-          })}
-        </div>
+            ) : (
+              <button
+                type="button"
+                className="swift-primary-button"
+                onClick={() => finishQuiz(false)}
+              >
+                Finish quiz <span aria-hidden="true">→</span>
+              </button>
+            )}
+          </div>
+        </section>
 
-        {selected && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mt-4 p-4 bg-gray-900 border border-gray-800 rounded-xl"
-          >
-            <p className="text-gray-400 text-xs">{q.explanation}</p>
-          </motion.div>
-        )}
-      </motion.div>
-
-      <div className="flex gap-3">
-        {current > 0 && (
-          <button
-            onClick={handleBack}
-            className="flex-1 bg-gray-900 border border-gray-800 text-white font-black py-3 rounded-xl hover:border-gray-600 transition-colors"
-          >
-            Back
-          </button>
-        )}
-        {selected && (
-          <button
-            onClick={handleNext}
-            className="flex-1 bg-white text-gray-950 font-black py-3 rounded-xl hover:bg-gray-200 transition-colors"
-          >
-            {current + 1 >= questions.length ? "See Results" : "Next"}
-          </button>
-        )}
-      </div>
+        <QuestionNavigator
+          total={questions.length}
+          current={current}
+          isAnswered={(index) => selectedAnswers[index] !== undefined}
+          flagged={flagged}
+          onJump={setCurrent}
+          onToggleFlag={(index) =>
+            setFlagged((currentFlags) => ({
+              ...currentFlags,
+              [index]: !currentFlags[index],
+            }))
+          }
+        />
+      </main>
     </div>
   );
 }
 
-// ─── German Quiz ─────────────────────────────────────────────────────────────
-
 function GermanQuiz({
   courseCode,
-  onBack,
   numQuestions,
+  timerMinutes,
   cachedQuestions,
   onCache,
   section,
+  onExit,
 }) {
   const [questions, setQuestions] = useState(cachedQuestions || []);
   const [current, setCurrent] = useState(0);
-  const [input, setInput] = useState("");
-  const [checked, setChecked] = useState(false);
-  const [isCorrect, setIsCorrect] = useState(false);
-  const [answers, setAnswers] = useState([]);
+  const [responses, setResponses] = useState({});
+  const [flagged, setFlagged] = useState({});
   const [loading, setLoading] = useState(!cachedQuestions);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
 
-  useState(() => {
-    if (cachedQuestions) return;
+  useEffect(() => {
+    if (cachedQuestions) return undefined;
+
+    let cancelled = false;
+
     async function fetchQuestions() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/quiz`, {
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/quiz`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -356,160 +546,230 @@ function GermanQuiz({
             question_type: "german",
           }),
         });
-        const data = await res.json();
-        setQuestions(data.questions);
-        onCache(data.questions);
-      } catch {
-        setError("Failed to generate questions. Try again.");
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.detail || "Questions could not be loaded.");
+        }
+
+        if (!data.questions?.length) {
+          throw new Error("This course does not have fill-in-the-blank questions yet.");
+        }
+
+        if (!cancelled) {
+          setQuestions(data.questions);
+          onCache(data.questions);
+        }
+      } catch (fetchError) {
+        if (!cancelled) {
+          setError(fetchError.message || "Questions could not be loaded.");
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
-    fetchQuestions();
-  }, []);
 
-  function handleCheck() {
-    const q = questions[current];
-    const acceptable = [q.correct_answer, ...(q.acceptable_answers || [])];
-    const correct = acceptable.some(
-      (a) => a.toLowerCase().trim() === input.toLowerCase().trim()
-    );
-    setIsCorrect(correct);
-    setChecked(true);
+    fetchQuestions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cachedQuestions, courseCode, numQuestions, onCache, section]);
+
+  const response = responses[current] || {
+    input: "",
+    checked: false,
+    isCorrect: false,
+  };
+
+  function updateInput(value) {
+    setResponses((currentResponses) => ({
+      ...currentResponses,
+      [current]: {
+        input: value,
+        checked: false,
+        isCorrect: false,
+      },
+    }));
   }
 
-  function handleNext() {
-    const newAnswers = [
-      ...answers,
-      {
-        question: questions[current].question,
-        input,
-        correct: questions[current].correct_answer,
+  function checkAnswer() {
+    const question = questions[current];
+    const acceptable = [
+      question.correct_answer,
+      ...(question.acceptable_answers || []),
+    ];
+
+    const isCorrect = acceptable.some(
+      (answer) =>
+        answer.toLowerCase().trim() === response.input.toLowerCase().trim()
+    );
+
+    setResponses((currentResponses) => ({
+      ...currentResponses,
+      [current]: {
+        input: response.input,
+        checked: true,
         isCorrect,
       },
-    ];
-    setAnswers(newAnswers);
-
-    if (current + 1 >= questions.length) {
-      setDone(true);
-    } else {
-      setCurrent(current + 1);
-      setInput("");
-      setChecked(false);
-      setIsCorrect(false);
-    }
+    }));
   }
 
-  if (loading) return <LoadingScreen />;
-  if (error) return <ErrorScreen message={error} onBack={onBack} />;
+  function finishQuiz(wasTimedOut = false) {
+    setTimedOut(wasTimedOut);
+    setDone(true);
+  }
+
+  if (loading) return <LoadingScreen label="Loading curated questions..." />;
+  if (error) return <QuizError message={error} onExit={onExit} />;
 
   if (done) {
-    const score = answers.filter((a) => a.isCorrect).length;
+    const answers = questions.map((question, index) => {
+      const answer = responses[index];
+
+      return {
+        question: question.question,
+        input: answer?.input,
+        correct: question.correct_answer,
+        isCorrect: answer?.isCorrect || false,
+      };
+    });
+
     return (
       <ResultsScreen
-        score={score}
-        total={questions.length}
         answers={answers}
-        onBack={onBack}
-        showCorrect
+        onExit={onExit}
+        timedOut={timedOut}
+        flaggedCount={Object.keys(flagged).filter((index) => flagged[index]).length}
       />
     );
   }
 
-  const q = questions[current];
+  const question = questions[current];
 
   return (
-    <div className="min-h-screen bg-gray-950 px-6 py-10 max-w-2xl mx-auto">
-      <div className="flex items-center justify-between mb-12">
-        <button
-          onClick={onBack}
-          className="text-gray-500 hover:text-white text-sm font-bold transition-colors"
-        >
-          ← Back
-        </button>
-        <span className="text-gray-500 text-sm font-bold">
-          {current + 1} / {questions.length}
-        </span>
-      </div>
+    <div className="quiz-page">
+      <QuizFocusHeader
+        courseCode={courseCode}
+        current={current}
+        total={questions.length}
+        timerMinutes={timerMinutes}
+        onExit={onExit}
+        onExpire={() => finishQuiz(true)}
+      />
 
-      <motion.div
-        key={current}
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        className="mb-8"
-      >
-        <p className="text-white font-black text-xl mb-2">
-          <MathText text={q.question} />
-        </p>
-        {q.hint && <p className="text-gray-500 text-xs mb-6">Hint: {q.hint}</p>}
+      <main className="quiz-main">
+        <section className="quiz-question-panel">
+          <p className="quiz-question-label">Fill in the blank</p>
+          <h1><MathText text={question.question} /></h1>
 
-        {!checked && (
-          <MathToolbar onInsert={(symbol) => setInput(input + symbol)} />
-        )}
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          disabled={checked}
-          placeholder="Type your answer..."
-          className="w-full bg-gray-800 border border-gray-700 text-white placeholder-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors"
+          {question.hint && <p className="quiz-hint">Hint: {question.hint}</p>}
+
+          {!response.checked && (
+            <MathToolbar onInsert={(symbol) => updateInput(response.input + symbol)} />
+          )}
+
+          <input
+            type="text"
+            value={response.input}
+            onChange={(event) => updateInput(event.target.value)}
+            disabled={response.checked}
+            placeholder="Type your answer"
+            className="quiz-answer-input"
+          />
+
+          {response.checked && (
+            <div
+              className={
+                response.isCorrect
+                  ? "quiz-explanation is-correct"
+                  : "quiz-explanation is-wrong"
+              }
+            >
+              <b>
+                {response.isCorrect
+                  ? "Correct."
+                  : `Correct answer: ${question.correct_answer}`}
+              </b>
+              {question.explanation && <p>{question.explanation}</p>}
+            </div>
+          )}
+
+          <div className="quiz-controls">
+            <button
+              type="button"
+              className="quiz-previous-button"
+              disabled={current === 0}
+              onClick={() => setCurrent((index) => Math.max(0, index - 1))}
+            >
+              ← Previous
+            </button>
+
+            {!response.checked ? (
+              <button
+                type="button"
+                className="swift-primary-button"
+                disabled={!response.input.trim()}
+                onClick={checkAnswer}
+              >
+                Check answer
+              </button>
+            ) : current < questions.length - 1 ? (
+              <button
+                type="button"
+                className="swift-primary-button"
+                onClick={() => setCurrent((index) => index + 1)}
+              >
+                Next question <span aria-hidden="true">→</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="swift-primary-button"
+                onClick={() => finishQuiz(false)}
+              >
+                Finish quiz <span aria-hidden="true">→</span>
+              </button>
+            )}
+          </div>
+        </section>
+
+        <QuestionNavigator
+          total={questions.length}
+          current={current}
+          isAnswered={(index) => Boolean(responses[index]?.input?.trim())}
+          flagged={flagged}
+          onJump={setCurrent}
+          onToggleFlag={(index) =>
+            setFlagged((currentFlags) => ({
+              ...currentFlags,
+              [index]: !currentFlags[index],
+            }))
+          }
         />
-
-        {checked && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className={`mt-4 p-4 rounded-xl border ${
-              isCorrect
-                ? "bg-green-900 border-green-600"
-                : "bg-red-900 border-red-600"
-            }`}
-          >
-            <p className="text-white text-xs font-bold mb-1">
-              {isCorrect ? "Correct!" : `Wrong. Answer: ${q.correct_answer}`}
-            </p>
-            <p className="text-gray-300 text-xs">{q.explanation}</p>
-          </motion.div>
-        )}
-      </motion.div>
-
-      {!checked ? (
-        <button
-          onClick={handleCheck}
-          disabled={!input.trim()}
-          className="w-full bg-white text-gray-950 font-black py-3 rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-30"
-        >
-          Check Answer
-        </button>
-      ) : (
-        <button
-          onClick={handleNext}
-          className="w-full bg-white text-gray-950 font-black py-3 rounded-xl hover:bg-gray-200 transition-colors"
-        >
-          {current + 1 >= questions.length ? "See Results" : "Next Question"}
-        </button>
-      )}
+      </main>
     </div>
   );
 }
 
-// ─── Theory Quiz ─────────────────────────────────────────────────────────────
-
-function TheoryQuiz({ courseCode, onBack }) {
+function TheoryQuiz({ courseCode, onExit }) {
   const [questions, setQuestions] = useState([]);
   const [current, setCurrent] = useState(0);
   const [answer, setAnswer] = useState("");
   const [result, setResult] = useState(null);
+  const [allResults, setAllResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [grading, setGrading] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
-  const [allResults, setAllResults] = useState([]);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function fetchQuestions() {
       try {
-        const res = await fetch(
+        const response = await fetch(
           `${import.meta.env.VITE_BACKEND_URL}/generate-theory-question`,
           {
             method: "POST",
@@ -517,22 +777,34 @@ function TheoryQuiz({ courseCode, onBack }) {
             body: JSON.stringify({ course_code: courseCode, num_questions: 5 }),
           }
         );
-        const data = await res.json();
-        setQuestions(data.questions || []);
-      } catch {
-        setError("Failed to load theory questions. Try again.");
+
+        const data = await response.json();
+
+        if (!response.ok) throw new Error(data.detail || "Theory could not load.");
+
+        if (!cancelled) setQuestions(data.questions || []);
+      } catch (fetchError) {
+        if (!cancelled) setError(fetchError.message || "Theory could not load.");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
+
     fetchQuestions();
+
+    return () => {
+      cancelled = true;
+    };
   }, [courseCode]);
 
-  async function handleSubmit() {
+  async function submitAnswer() {
     if (!answer.trim()) return;
+
     setGrading(true);
+    setError("");
+
     try {
-      const res = await fetch(
+      const response = await fetch(
         `${import.meta.env.VITE_BACKEND_URL}/grade-theory`,
         {
           method: "POST",
@@ -544,260 +816,200 @@ function TheoryQuiz({ courseCode, onBack }) {
           }),
         }
       );
-      const data = await res.json();
+
+      const data = await response.json();
+
+      if (!response.ok) throw new Error(data.detail || "Answer could not be graded.");
+
       setResult(data.grading);
-      setAllResults([
-        ...allResults,
+      setAllResults((results) => [
+        ...results,
         { question: questions[current]?.question, grading: data.grading },
       ]);
-    } catch {
-      setError("Failed to grade. Try again.");
+    } catch (gradingError) {
+      setError(gradingError.message || "Answer could not be graded.");
     } finally {
       setGrading(false);
     }
   }
 
-  function handleNext() {
+  function nextQuestion() {
     if (current + 1 >= questions.length) {
       setDone(true);
-    } else {
-      setCurrent(current + 1);
-      setAnswer("");
-      setResult(null);
+      return;
     }
+
+    setCurrent((index) => index + 1);
+    setAnswer("");
+    setResult(null);
   }
 
-  if (loading) return <LoadingScreen />;
-  if (error) return <ErrorScreen message={error} onBack={onBack} />;
+  if (loading) return <LoadingScreen label="Loading theory questions..." />;
+  if (error && !questions.length) return <QuizError message={error} onExit={onExit} />;
 
   if (done) {
-    const avg =
+    const average =
       allResults.length > 0
-        ? allResults.reduce((sum, r) => sum + r.grading.score, 0) /
+        ? allResults.reduce((sum, item) => sum + item.grading.score, 0) /
           allResults.length
         : 0;
+
     return (
-      <div className="min-h-screen bg-gray-950 px-6 py-10 max-w-2xl mx-auto">
-        <button
-          onClick={onBack}
-          className="text-gray-500 hover:text-white text-sm font-bold transition-colors mb-12"
-        >
-          Back
+      <div className="quiz-results-page">
+        <button type="button" className="swift-back-button" onClick={onExit}>
+          ← Back to quiz setup
         </button>
-        <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">
-          Theory Complete
-        </p>
-        <p className="text-white font-black text-5xl mb-8">
-          {avg.toFixed(1)}
-          <span className="text-gray-500 text-2xl">/10 avg</span>
-        </p>
-        <div className="flex flex-col gap-4">
-          {allResults.map((r, i) => (
-            <div
-              key={i}
-              className="bg-gray-900 border border-gray-800 rounded-2xl p-5"
-            >
-              <p className="text-gray-400 text-xs mb-2">{r.question}</p>
-              <p className="text-white font-black">
-                {r.grading.score}/10 - {r.grading.grade}
-              </p>
-            </div>
+        <p className="swift-eyebrow">Theory complete</p>
+        <h1>{average.toFixed(1)}<span>/10 average</span></h1>
+        <div className="quiz-review-list">
+          {allResults.map((item, index) => (
+            <article key={index} className="quiz-review-row">
+              <p>{item.question}</p>
+              <strong>
+                {item.grading.score}/{item.grading.max_score} · {item.grading.grade}
+              </strong>
+            </article>
           ))}
         </div>
       </div>
     );
   }
 
-  const q = questions[current];
-
-  if (result) {
-    return (
-      <div className="min-h-screen bg-gray-950 px-6 py-10 max-w-2xl mx-auto">
-        <div className="flex items-center justify-between mb-12">
-          <button
-            onClick={onBack}
-            className="text-gray-500 hover:text-white text-sm font-bold"
-          >
-            Back
-          </button>
-          <span className="text-gray-500 text-sm font-bold">
-            {current + 1} / {questions.length}
-          </span>
-        </div>
-        <div className="mb-6">
-          <p className="text-white font-black text-5xl">
-            {result.score}
-            <span className="text-gray-500 text-2xl">/{result.max_score}</span>
-          </p>
-          <p className="text-gray-400 text-sm mt-1">Grade: {result.grade}</p>
-        </div>
-        <div className="flex flex-col gap-4 mb-8">
-          {result.feedback.strengths?.length > 0 && (
-            <div className="bg-green-900 border border-green-700 rounded-2xl p-5">
-              <p className="text-green-400 text-xs font-bold uppercase tracking-widest mb-3">
-                Strengths
-              </p>
-              {result.feedback.strengths.map((s, i) => (
-                <p key={i} className="text-white text-sm mb-1">
-                  - {s}
-                </p>
-              ))}
-            </div>
-          )}
-          {result.feedback.weaknesses?.length > 0 && (
-            <div className="bg-red-900 border border-red-700 rounded-2xl p-5">
-              <p className="text-red-400 text-xs font-bold uppercase tracking-widest mb-3">
-                Weaknesses
-              </p>
-              {result.feedback.weaknesses.map((w, i) => (
-                <p key={i} className="text-white text-sm mb-1">
-                  - {w}
-                </p>
-              ))}
-            </div>
-          )}
-          {result.feedback.suggestion && (
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-              <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-2">
-                Suggestion
-              </p>
-              <p className="text-white text-sm">{result.feedback.suggestion}</p>
-            </div>
-          )}
-        </div>
-        <button
-          onClick={handleNext}
-          className="w-full bg-white text-gray-950 font-black py-3 rounded-xl hover:bg-gray-200 transition-colors"
-        >
-          {current + 1 >= questions.length
-            ? "See Final Results"
-            : "Next Question"}
-        </button>
-      </div>
-    );
-  }
+  const question = questions[current];
 
   return (
-    <div className="min-h-screen bg-gray-950 px-6 py-10 max-w-2xl mx-auto">
-      <div className="flex items-center justify-between mb-12">
-        <button
-          onClick={onBack}
-          className="text-gray-500 hover:text-white text-sm font-bold"
-        >
-          Back
-        </button>
-        <span className="text-gray-500 text-sm font-bold">
-          {current + 1} / {questions.length}
-        </span>
-      </div>
-      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">
-        {q?.type} - {q?.difficulty}
-      </p>
-      <p className="text-white font-black text-xl mb-8">
-        <MathText text={q?.question} />
-      </p>
-      {q?.key_points?.length > 0 && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-6">
-          <p className="text-gray-500 text-xs font-bold mb-2">
-            KEY POINTS TO COVER
-          </p>
-          {q.key_points.map((kp, i) => (
-            <p key={i} className="text-gray-400 text-xs">
-              - {kp}
-            </p>
-          ))}
-        </div>
-      )}
-      <MathToolbar onInsert={(symbol) => setAnswer(answer + symbol)} />
-      <textarea
-        value={answer}
-        onChange={(e) => setAnswer(e.target.value)}
-        placeholder="Write your answer here..."
-        rows={10}
-        className="w-full bg-gray-800 border border-gray-700 text-white placeholder-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors resize-none mb-6"
+    <div className="quiz-page">
+      <QuizFocusHeader
+        courseCode={courseCode}
+        current={current}
+        total={questions.length}
+        timerMinutes={0}
+        onExit={onExit}
+        onExpire={() => {}}
       />
-      {error && <p className="text-red-400 text-xs font-bold mb-4">{error}</p>}
-      <button
-        onClick={handleSubmit}
-        disabled={grading || !answer.trim()}
-        className="w-full bg-white text-gray-950 font-black py-3 rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-30"
-      >
-        {grading ? "Grading..." : "Submit for Grading"}
-      </button>
+
+      <main className="theory-main">
+        <section className="quiz-question-panel">
+          <p className="quiz-question-label">
+            Theory · {question?.difficulty || "Practice"}
+          </p>
+          <h1><MathText text={question?.question} /></h1>
+
+          {question?.key_points?.length > 0 && (
+            <div className="theory-key-points">
+              <b>Points to cover</b>
+              {question.key_points.map((point) => (
+                <span key={point}>{point}</span>
+              ))}
+            </div>
+          )}
+
+          {result ? (
+            <div className="theory-feedback">
+              <p>
+                <strong>{result.score}/{result.max_score}</strong> · {result.grade}
+              </p>
+              {result.feedback?.suggestion && <span>{result.feedback.suggestion}</span>}
+              <button type="button" className="swift-primary-button" onClick={nextQuestion}>
+                {current + 1 >= questions.length ? "See results" : "Next question"} →
+              </button>
+            </div>
+          ) : (
+            <>
+              <MathToolbar onInsert={(symbol) => setAnswer((text) => text + symbol)} />
+              <textarea
+                value={answer}
+                onChange={(event) => setAnswer(event.target.value)}
+                placeholder="Write your answer here"
+                rows={10}
+                className="theory-answer-area"
+              />
+              {error && <p className="cgpa-error">{error}</p>}
+              <button
+                type="button"
+                className="swift-primary-button"
+                disabled={grading || !answer.trim()}
+                onClick={submitAnswer}
+              >
+                {grading ? "Grading..." : "Submit answer"}
+              </button>
+            </>
+          )}
+        </section>
+      </main>
     </div>
   );
 }
 
-// ─── Shared Components ────────────────────────────────────────────────────────
+function ResultsScreen({ answers, onExit, timedOut, flaggedCount }) {
+  const score = answers.filter((answer) => answer.isCorrect).length;
+  const percentage = answers.length
+    ? Math.round((score / answers.length) * 100)
+    : 0;
+  const unanswered = answers.filter(
+    (answer) => !answer.selected && !answer.input
+  ).length;
 
-function LoadingScreen() {
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-3">
-      <BookLoader />
-      <p className="text-gray-500 text-sm font-bold animate-pulse mt-2">
-        Generating questions...
-      </p>
-      <p className="text-gray-700 text-xs">This may take 20–30 seconds</p>
-    </div>
-  );
-}
-
-function ErrorScreen({ message, onBack }) {
-  return (
-    <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-4">
-      <p className="text-red-400 text-sm">{message}</p>
-      <button
-        onClick={onBack}
-        className="text-white text-sm font-bold underline"
-      >
-        Go Back
-      </button>
-    </div>
-  );
-}
-
-function ResultsScreen({ score, total, answers, onBack, showCorrect }) {
-  const percentage = Math.round((score / total) * 100);
-  return (
-    <div className="min-h-screen bg-gray-950 px-6 py-10 max-w-2xl mx-auto">
-      <button
-        onClick={onBack}
-        className="text-gray-500 hover:text-white text-sm font-bold transition-colors mb-12"
-      >
-        ← Try Again
+    <div className="quiz-results-page">
+      <button type="button" className="swift-back-button" onClick={onExit}>
+        ← Back to quiz setup
       </button>
 
-      <div className="mb-8">
-        <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">
-          Results
+      <p className="swift-eyebrow">{timedOut ? "Time expired" : "Quiz complete"}</p>
+      <h1>
+        {score}<span>/{answers.length}</span>
+      </h1>
+      <p className="quiz-results-summary">{percentage}% correct</p>
+
+      {(unanswered > 0 || flaggedCount > 0) && (
+        <p className="quiz-results-note">
+          {unanswered > 0 && `${unanswered} unanswered`}
+          {unanswered > 0 && flaggedCount > 0 && " · "}
+          {flaggedCount > 0 && `${flaggedCount} flagged for review`}
         </p>
-        <p className="text-white font-black text-5xl">
-          {score}
-          <span className="text-gray-500 text-2xl">/{total}</span>
-        </p>
-        <p className="text-gray-400 text-sm mt-1">{percentage}% correct</p>
-      </div>
+      )}
 
-      <div className="flex flex-col gap-3">
-        {answers.map((a, i) => (
-          <div
-            key={i}
-            className={`rounded-xl p-4 border ${
-              a.isCorrect
-                ? "bg-green-900 border-green-700"
-                : "bg-red-900 border-red-700"
-            }`}
+      <div className="quiz-review-list">
+        {answers.map((answer, index) => (
+          <article
+            key={index}
+            className={
+              answer.isCorrect
+                ? "quiz-review-row is-correct"
+                : "quiz-review-row is-wrong"
+            }
           >
-            <p className="text-white text-sm font-bold mb-1">{a.question}</p>
-            <p className="text-gray-300 text-xs">
-              Your answer: {a.selected || a.input}
-            </p>
-            {!a.isCorrect && showCorrect && (
-              <p className="text-green-400 text-xs">Correct: {a.correct}</p>
-            )}
-          </div>
+            <p>{answer.question}</p>
+            <small>
+              Your answer: {answer.selected || answer.input || "Not answered"}
+            </small>
+            {!answer.isCorrect && <b>Correct: {answer.correct}</b>}
+          </article>
         ))}
       </div>
+    </div>
+  );
+}
+
+function LoadingScreen({ label }) {
+  return (
+    <div className="swift-loading-screen">
+      <span className="swift-loading-mark">S</span>
+      <p>{label}</p>
+    </div>
+  );
+}
+
+function QuizError({ message, onExit }) {
+  return (
+    <div className="quiz-results-page quiz-error-page">
+      <p className="swift-eyebrow">Practice unavailable</p>
+      <h1>We could not start this quiz.</h1>
+      <p>{message}</p>
+      <button type="button" className="swift-primary-button" onClick={onExit}>
+        Back to quiz setup
+      </button>
     </div>
   );
 }
