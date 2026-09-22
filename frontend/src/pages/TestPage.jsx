@@ -17,6 +17,7 @@ export default function TestPage() {
   const courseCode = decodeURIComponent(rawCourseCode);
   const navigate = useNavigate();
   const [mode, setMode] = useState(null);
+  const [attemptMode, setAttemptMode] = useState("practice");
   const [numQuestions, setNumQuestions] = useState(10);
   const [timerMinutes, setTimerMinutes] = useState(0);
   const [section, setSection] = useState("");
@@ -39,11 +40,44 @@ export default function TestPage() {
 
         <main className="quiz-setup-main">
           <section className="quiz-setup-intro">
-            <p className="swift-eyebrow">Curated practice</p>
-            <h1>Set up your quiz.</h1>
+            <p className="swift-eyebrow">Curated questions</p>
+            <h1>Set up your session.</h1>
             <p>
-              Choose the number of questions, an optional countdown, and a mode.
-              You can jump to any question once you begin.
+              Choose a question type and how you want to work. You can jump to
+              any question once you begin.
+            </p>
+          </section>
+
+          <section className="quiz-setup-section">
+            <p className="quiz-setup-label">How do you want to work?</p>
+            <div className="quiz-option-row">
+              <button
+                type="button"
+                className={
+                  attemptMode === "practice"
+                    ? "quiz-choice-button is-selected"
+                    : "quiz-choice-button"
+                }
+                onClick={() => setAttemptMode("practice")}
+              >
+                Practice
+              </button>
+              <button
+                type="button"
+                className={
+                  attemptMode === "test"
+                    ? "quiz-choice-button is-selected"
+                    : "quiz-choice-button"
+                }
+                onClick={() => setAttemptMode("test")}
+              >
+                Test
+              </button>
+            </div>
+            <p className="quiz-setup-hint">
+              {attemptMode === "practice"
+                ? "Practice reveals correctness and explanations as you work."
+                : "Test keeps correctness and explanations hidden until you submit."}
             </p>
           </section>
 
@@ -155,6 +189,7 @@ export default function TestPage() {
         section={section}
         cachedQuestions={cachedMCQ}
         onCache={setCachedMCQ}
+        attemptMode={attemptMode}
         onExit={() => setMode(null)}
       />
     );
@@ -169,6 +204,7 @@ export default function TestPage() {
         section={section}
         cachedQuestions={cachedGerman}
         onCache={setCachedGerman}
+        attemptMode={attemptMode}
         onExit={() => setMode(null)}
       />
     );
@@ -322,6 +358,7 @@ function MCQQuiz({
   cachedQuestions,
   onCache,
   section,
+  attemptMode,
   onExit,
 }) {
   const [questions, setQuestions] = useState(cachedQuestions || []);
@@ -382,12 +419,27 @@ function MCQQuiz({
   }, [cachedQuestions, courseCode, numQuestions, onCache, section]);
 
   function selectAnswer(option) {
-    if (selectedAnswers[current] !== undefined) return;
+    if (
+      attemptMode === "practice" &&
+      selectedAnswers[current] !== undefined
+    ) {
+      return;
+    }
 
     setSelectedAnswers((answers) => ({ ...answers, [current]: option }));
   }
 
   function finishQuiz(wasTimedOut = false) {
+    if (
+      attemptMode === "test" &&
+      !wasTimedOut &&
+      !window.confirm(
+        "Submit this test now? You will see your score and answer review after submitting."
+      )
+    ) {
+      return;
+    }
+
     setTimedOut(wasTimedOut);
     setDone(true);
   }
@@ -408,6 +460,7 @@ function MCQQuiz({
         answers={answers}
         onExit={onExit}
         timedOut={timedOut}
+        attemptMode={attemptMode}
         flaggedCount={Object.keys(flagged).filter((index) => flagged[index]).length}
       />
     );
@@ -429,13 +482,15 @@ function MCQQuiz({
 
       <main className="quiz-main">
         <section className="quiz-question-panel">
-          <p className="quiz-question-label">Multiple choice</p>
+          <p className="quiz-question-label">
+            {attemptMode === "test" ? "Multiple-choice test" : "Multiple-choice practice"}
+          </p>
           <h1><MathText text={question.question} /></h1>
 
           <div className="quiz-options">
             {Object.entries(question.options).map(([key, value]) => {
               const classes = ["quiz-option"];
-              if (selected !== undefined) {
+              if (attemptMode === "practice" && selected !== undefined) {
                 if (key === question.correct_answer) classes.push("is-correct");
                 else if (key === selected) classes.push("is-wrong");
                 else classes.push("is-muted");
@@ -447,7 +502,9 @@ function MCQQuiz({
                   type="button"
                   className={classes.join(" ")}
                   onClick={() => selectAnswer(key)}
-                  disabled={selected !== undefined}
+                  disabled={
+                    attemptMode === "practice" && selected !== undefined
+                  }
                 >
                   <span>{key}</span>
                   <MathText text={value} />
@@ -456,7 +513,9 @@ function MCQQuiz({
             })}
           </div>
 
-          {selected !== undefined && question.explanation && (
+          {attemptMode === "practice" &&
+            selected !== undefined &&
+            question.explanation && (
             <div className="quiz-explanation">
               <b>{selected === question.correct_answer ? "Correct." : "Review this."}</b>
               <p>{question.explanation}</p>
@@ -487,7 +546,8 @@ function MCQQuiz({
                 className="swift-primary-button"
                 onClick={() => finishQuiz(false)}
               >
-                Finish quiz <span aria-hidden="true">→</span>
+                {attemptMode === "test" ? "Submit test" : "Finish quiz"}{" "}
+                <span aria-hidden="true">→</span>
               </button>
             )}
           </div>
@@ -511,6 +571,15 @@ function MCQQuiz({
   );
 }
 
+function matchesGermanAnswer(question, input) {
+  if (!input?.trim()) return false;
+
+  return [question.correct_answer, ...(question.acceptable_answers || [])].some(
+    (answer) =>
+      answer.toLowerCase().trim() === input.toLowerCase().trim()
+  );
+}
+
 function GermanQuiz({
   courseCode,
   numQuestions,
@@ -518,6 +587,7 @@ function GermanQuiz({
   cachedQuestions,
   onCache,
   section,
+  attemptMode,
   onExit,
 }) {
   const [questions, setQuestions] = useState(cachedQuestions || []);
@@ -596,15 +666,7 @@ function GermanQuiz({
 
   function checkAnswer() {
     const question = questions[current];
-    const acceptable = [
-      question.correct_answer,
-      ...(question.acceptable_answers || []),
-    ];
-
-    const isCorrect = acceptable.some(
-      (answer) =>
-        answer.toLowerCase().trim() === response.input.toLowerCase().trim()
-    );
+    const isCorrect = matchesGermanAnswer(question, response.input);
 
     setResponses((currentResponses) => ({
       ...currentResponses,
@@ -617,6 +679,16 @@ function GermanQuiz({
   }
 
   function finishQuiz(wasTimedOut = false) {
+    if (
+      attemptMode === "test" &&
+      !wasTimedOut &&
+      !window.confirm(
+        "Submit this test now? You will see your score and answer review after submitting."
+      )
+    ) {
+      return;
+    }
+
     setTimedOut(wasTimedOut);
     setDone(true);
   }
@@ -632,7 +704,10 @@ function GermanQuiz({
         question: question.question,
         input: answer?.input,
         correct: question.correct_answer,
-        isCorrect: answer?.isCorrect || false,
+        isCorrect:
+          answer?.checked
+            ? answer.isCorrect
+            : matchesGermanAnswer(question, answer?.input),
       };
     });
 
@@ -641,6 +716,7 @@ function GermanQuiz({
         answers={answers}
         onExit={onExit}
         timedOut={timedOut}
+        attemptMode={attemptMode}
         flaggedCount={Object.keys(flagged).filter((index) => flagged[index]).length}
       />
     );
@@ -661,10 +737,14 @@ function GermanQuiz({
 
       <main className="quiz-main">
         <section className="quiz-question-panel">
-          <p className="quiz-question-label">Fill in the blank</p>
+          <p className="quiz-question-label">
+            {attemptMode === "test" ? "Recall test" : "Fill-in-the-blank practice"}
+          </p>
           <h1><MathText text={question.question} /></h1>
 
-          {question.hint && <p className="quiz-hint">Hint: {question.hint}</p>}
+          {attemptMode === "practice" && question.hint && (
+            <p className="quiz-hint">Hint: {question.hint}</p>
+          )}
 
           {!response.checked && (
             <MathToolbar onInsert={(symbol) => updateInput(response.input + symbol)} />
@@ -674,7 +754,7 @@ function GermanQuiz({
             type="text"
             value={response.input}
             onChange={(event) => updateInput(event.target.value)}
-            disabled={response.checked}
+            disabled={attemptMode === "practice" && response.checked}
             placeholder="Type your answer"
             className="quiz-answer-input"
           />
@@ -706,7 +786,7 @@ function GermanQuiz({
               ← Previous
             </button>
 
-            {!response.checked ? (
+            {attemptMode === "practice" && !response.checked ? (
               <button
                 type="button"
                 className="swift-primary-button"
@@ -729,7 +809,8 @@ function GermanQuiz({
                 className="swift-primary-button"
                 onClick={() => finishQuiz(false)}
               >
-                Finish quiz <span aria-hidden="true">→</span>
+                {attemptMode === "test" ? "Submit test" : "Finish quiz"}{" "}
+                <span aria-hidden="true">→</span>
               </button>
             )}
           </div>
@@ -941,7 +1022,13 @@ function TheoryQuiz({ courseCode, onExit }) {
   );
 }
 
-function ResultsScreen({ answers, onExit, timedOut, flaggedCount }) {
+function ResultsScreen({
+  answers,
+  onExit,
+  timedOut,
+  flaggedCount,
+  attemptMode = "practice",
+}) {
   const score = answers.filter((answer) => answer.isCorrect).length;
   const percentage = answers.length
     ? Math.round((score / answers.length) * 100)
@@ -956,7 +1043,13 @@ function ResultsScreen({ answers, onExit, timedOut, flaggedCount }) {
         ← Back to quiz setup
       </button>
 
-      <p className="swift-eyebrow">{timedOut ? "Time expired" : "Quiz complete"}</p>
+      <p className="swift-eyebrow">
+        {timedOut
+          ? "Time expired"
+          : attemptMode === "test"
+            ? "Test complete"
+            : "Practice complete"}
+      </p>
       <h1>
         {score}<span>/{answers.length}</span>
       </h1>
