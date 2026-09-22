@@ -34,8 +34,8 @@ app.add_middleware(
 anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.3-70b-versatile"
-GROQ_VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+GROQ_MODEL = "openai/gpt-oss-20b"
+GROQ_VISION_MODEL = "qwen/qwen3.8-27b"
 
 supabase = create_client(
     os.getenv("SUPABASE_URL"),
