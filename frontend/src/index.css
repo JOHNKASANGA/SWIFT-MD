@@ -2631,6 +2631,21 @@ button {
   font-weight: 850;
 }
 
+.quiz-option.is-selected {
+  border-color: #171717;
+  background: #171717;
+  box-shadow: 0 0 0 1px #171717;
+  color: #ffffff;
+}
+
+.quiz-option.is-selected:hover:not(:disabled) {
+  border-color: #171717;
+}
+
+.quiz-option.is-selected > span {
+  color: #ffffff;
+}
+
 .quiz-option.is-correct {
   border-color: #4e8d68;
   background: #eff8f1;

@@ -473,6 +473,10 @@ function MCQQuiz({
           <div className="quiz-options">
             {Object.entries(question.options).map(([key, value]) => {
               const classes = ["quiz-option"];
+              if (attemptMode === "test" && key === selected) {
+                classes.push("is-selected");
+              }
+
               if (attemptMode === "practice" && selected !== undefined) {
                 if (key === question.correct_answer) classes.push("is-correct");
                 else if (key === selected) classes.push("is-wrong");
@@ -485,6 +489,7 @@ function MCQQuiz({
                   type="button"
                   className={classes.join(" ")}
                   onClick={() => selectAnswer(key)}
+                  aria-pressed={selected === key}
                   disabled={
                     attemptMode === "practice" && selected !== undefined
                   }
