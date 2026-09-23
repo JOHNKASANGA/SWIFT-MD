@@ -6,31 +6,19 @@ const MATH_SEGMENT_PATTERN =
 
 function getMathSegment(part) {
   if (part.startsWith("\\[") && part.endsWith("\\]")) {
-    return {
-      display: true,
-      formula: part.slice(2, -2).trim(),
-    };
+    return { display: true, formula: part.slice(2, -2).trim() };
   }
 
   if (part.startsWith("\\(") && part.endsWith("\\)")) {
-    return {
-      display: false,
-      formula: part.slice(2, -2).trim(),
-    };
+    return { display: false, formula: part.slice(2, -2).trim() };
   }
 
   if (part.startsWith("$$") && part.endsWith("$$")) {
-    return {
-      display: true,
-      formula: part.slice(2, -2).trim(),
-    };
+    return { display: true, formula: part.slice(2, -2).trim() };
   }
 
   if (part.startsWith("$") && part.endsWith("$")) {
-    return {
-      display: false,
-      formula: part.slice(1, -1).trim(),
-    };
+    return { display: false, formula: part.slice(1, -1).trim() };
   }
 
   return null;
@@ -73,15 +61,11 @@ export default function MathText({ text }) {
           />
         );
 
-        if (segment.display) {
-          return (
-            <span key={index} className="math-text-display">
-              {math}
-            </span>
-          );
-        }
-
-        return (
+        return segment.display ? (
+          <span key={index} className="math-text-display">
+            {math}
+          </span>
+        ) : (
           <span key={index} className="math-text-inline">
             {math}
           </span>

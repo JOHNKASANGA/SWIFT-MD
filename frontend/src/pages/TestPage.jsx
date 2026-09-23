@@ -506,7 +506,7 @@ function MCQQuiz({
             question.explanation && (
             <div className="quiz-explanation">
               <b>{selected === question.correct_answer ? "Correct." : "Review this."}</b>
-              <p>{question.explanation}</p>
+              <p><MathText text={question.explanation} /></p>
             </div>
           )}
 
@@ -729,7 +729,7 @@ function GermanQuiz({
           <h1><MathText text={question.question} /></h1>
 
           {attemptMode === "practice" && question.hint && (
-            <p className="quiz-hint">Hint: {question.hint}</p>
+            <p className="quiz-hint">Hint: <MathText text={question.hint} /></p>
           )}
 
           {!response.checked && (
@@ -754,11 +754,15 @@ function GermanQuiz({
               }
             >
               <b>
-                {response.isCorrect
-                  ? "Correct."
-                  : `Correct answer: ${question.correct_answer}`}
+                {response.isCorrect ? (
+                  "Correct."
+                ) : (
+                  <>
+                    Correct answer: <MathText text={question.correct_answer} />
+                  </>
+                )}
               </b>
-              {question.explanation && <p>{question.explanation}</p>}
+              {question.explanation && <p><MathText text={question.explanation} /></p>}
             </div>
           )}
 
@@ -931,7 +935,7 @@ function TheoryQuiz({ courseCode, onExit }) {
         <div className="quiz-review-list">
           {allResults.map((item, index) => (
             <article key={index} className="quiz-review-row">
-              <p>{item.question}</p>
+              <p><MathText text={item.question} /></p>
               <strong>
                 {item.grading.score}/{item.grading.max_score} · {item.grading.grade}
               </strong>
@@ -966,7 +970,7 @@ function TheoryQuiz({ courseCode, onExit }) {
             <div className="theory-key-points">
               <b>Points to cover</b>
               {question.key_points.map((point) => (
-                <span key={point}>{point}</span>
+                <span key={point}><MathText text={point} /></span>
               ))}
             </div>
           )}
@@ -976,7 +980,9 @@ function TheoryQuiz({ courseCode, onExit }) {
               <p>
                 <strong>{result.score}/{result.max_score}</strong> · {result.grade}
               </p>
-              {result.feedback?.suggestion && <span>{result.feedback.suggestion}</span>}
+              {result.feedback?.suggestion && (
+                <span><MathText text={result.feedback.suggestion} /></span>
+              )}
               <button type="button" className="swift-primary-button" onClick={nextQuestion}>
                 {current + 1 >= questions.length ? "See results" : "Next question"} →
               </button>
@@ -1059,11 +1065,16 @@ function ResultsScreen({
                 : "quiz-review-row is-wrong"
             }
           >
-            <p>{answer.question}</p>
+            <p><MathText text={answer.question} /></p>
             <small>
-              Your answer: {answer.selected || answer.input || "Not answered"}
+              Your answer:{" "}
+              <MathText text={answer.selected || answer.input || "Not answered"} />
             </small>
-            {!answer.isCorrect && <b>Correct: {answer.correct}</b>}
+            {!answer.isCorrect && (
+              <b>
+                Correct: <MathText text={answer.correct} />
+              </b>
+            )}
           </article>
         ))}
       </div>
