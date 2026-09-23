@@ -1,5 +1,4 @@
 import { InlineMath } from "react-katex";
-import "katex/dist/katex.min.css";
 
 const MATH_SEGMENT_PATTERN =
   /(\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$\$[\s\S]*?\$\$|\$[^\n$]+?\$)/g;
@@ -22,6 +21,12 @@ function getMathSegment(part) {
   }
 
   return null;
+}
+
+function normaliseFormula(formula) {
+  return formula
+    .replace(/ /g, " ")
+    .replace(/\\\\(?=[A-Za-z])/g, "\\");
 }
 
 function MathFallback({ formula }) {
@@ -48,16 +53,18 @@ export default function MathText({ text }) {
           return <span key={index}>{part}</span>;
         }
 
-        if (!segment.formula) {
+        const formula = normaliseFormula(segment.formula);
+
+        if (!formula) {
           return <MathFallback key={index} formula={part} />;
         }
 
         const math = (
           <InlineMath
-            math={segment.formula}
+            math={formula}
             throwOnError
             strict="ignore"
-            renderError={() => <MathFallback formula={segment.formula} />}
+            renderError={() => <MathFallback formula={formula} />}
           />
         );
 

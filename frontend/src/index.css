@@ -3573,3 +3573,51 @@ button {
   font-weight: 650;
   overflow-wrap: anywhere;
 }
+
+/* MathText rendering */
+.math-text {
+  min-width: 0;
+  white-space: pre-wrap;
+}
+
+.math-text-inline {
+  display: inline;
+}
+
+.math-text-inline .katex {
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.math-text-display {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin: 0.65rem 0;
+  padding: 0.35rem 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.math-text-display .katex {
+  white-space: nowrap;
+}
+
+.quiz-option .math-text {
+  min-width: 0;
+}
+
+.quiz-option .math-text-inline .katex {
+  max-width: 100%;
+  font-size: 1em;
+}
+
+.math-text-fallback {
+  display: inline;
+  color: #6b5047;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.9em;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
