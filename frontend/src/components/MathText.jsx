@@ -1,42 +1,92 @@
 import { InlineMath } from "react-katex";
 import "katex/dist/katex.min.css";
 
-// Data reaching this component should already have ALL LaTeX wrapped in
-// clean $...$ delimiters (normalized upstream when the question bank was
-// built). This component only needs to split on those delimiters and
-// render each math segment - no guessing about raw/undelimited LaTeX.
-export default function MathText({ text }) {
-  if (!text) return null;
+const MATH_SEGMENT_PATTERN =
+  /(\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$\$[\s\S]*?\$\$|\$[^\n$]+?\$)/g;
 
-  const parts = text.split(/(\\\(.*?\\\)|\$.*?\$)/g);
+function getMathSegment(part) {
+  if (part.startsWith("\\[") && part.endsWith("\\]")) {
+    return {
+      display: true,
+      formula: part.slice(2, -2).trim(),
+    };
+  }
+
+  if (part.startsWith("\\(") && part.endsWith("\\)")) {
+    return {
+      display: false,
+      formula: part.slice(2, -2).trim(),
+    };
+  }
+
+  if (part.startsWith("$$") && part.endsWith("$$")) {
+    return {
+      display: true,
+      formula: part.slice(2, -2).trim(),
+    };
+  }
+
+  if (part.startsWith("$") && part.endsWith("$")) {
+    return {
+      display: false,
+      formula: part.slice(1, -1).trim(),
+    };
+  }
+
+  return null;
+}
+
+function MathFallback({ formula }) {
+  return (
+    <code className="math-text-fallback" title="This formula could not be rendered">
+      {formula}
+    </code>
+  );
+}
+
+export default function MathText({ text }) {
+  if (text === null || text === undefined || text === "") return null;
+
+  const parts = String(text).split(MATH_SEGMENT_PATTERN);
 
   return (
-    <>
-      {parts.map((part, i) => {
-        const isDelimited =
-          (part.startsWith("\\(") && part.endsWith("\\)")) ||
-          (part.startsWith("$") && part.endsWith("$") && part.length > 1);
+    <span className="math-text">
+      {parts.map((part, index) => {
+        if (!part) return null;
 
-        if (!isDelimited) {
-          return part ? <span key={i}>{part}</span> : null;
+        const segment = getMathSegment(part);
+
+        if (!segment) {
+          return <span key={index}>{part}</span>;
         }
 
-        const formula = part.replace(/^\\\(|\\\)$|^\$|\$$/g, "").trim();
-        if (!formula) return null;
+        if (!segment.formula) {
+          return <MathFallback key={index} formula={part} />;
+        }
 
-        return (
+        const math = (
           <InlineMath
-            key={i}
-            math={formula}
-            throwOnError={false}
-            strict={false}
-            renderError={(error) => {
-              console.error("KaTeX render error for formula:", formula, error);
-              return <span className="text-gray-400">{formula}</span>;
-            }}
+            math={segment.formula}
+            throwOnError
+            strict="ignore"
+            renderError={() => <MathFallback formula={segment.formula} />}
           />
         );
+
+        if (segment.display) {
+          return (
+            <span key={index} className="math-text-display">
+              {math}
+            </span>
+          );
+        }
+
+        return (
+          <span key={index} className="math-text-inline">
+            {math}
+          </span>
+        );
       })}
-    </>
+    </span>
   );
 }
