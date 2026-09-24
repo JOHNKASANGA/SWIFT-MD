@@ -3,6 +3,73 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import AppShell from "../components/AppShell";
 
+const MATERIAL_PRIORITY = {
+  start_here: { label: "Start here", rank: 0 },
+  core: { label: "Core", rank: 1 },
+  recommended: { label: "Recommended", rank: 2 },
+  supplementary: { label: "Supplementary", rank: 3 },
+  reference: { label: "Reference", rank: 4 },
+  unreviewed: { label: null, rank: 5 },
+};
+
+function getMaterialPriority(material) {
+  return MATERIAL_PRIORITY[material.material_priority] ||
+    MATERIAL_PRIORITY.unreviewed;
+}
+
+function sortMaterialsByPriority(materials) {
+  return [...materials].sort((first, second) => {
+    const priorityDifference =
+      getMaterialPriority(first).rank - getMaterialPriority(second).rank;
+
+    if (priorityDifference !== 0) return priorityDifference;
+
+    return first.title.localeCompare(second.title);
+  });
+}
+
+function MaterialRow({ material, index, onOpen }) {
+  const priority = getMaterialPriority(material);
+
+  return (
+    <button
+      type="button"
+      className="material-row"
+      onClick={() => onOpen(material.id)}
+    >
+      <span className="material-number">
+        {String(index + 1).padStart(2, "0")}
+      </span>
+
+      <span className="material-row-content">
+        <span className="material-title">{material.title}</span>
+
+        {priority.label && (
+          <span
+            className={
+              priority.label === "Start here"
+                ? "material-priority is-start-here"
+                : "material-priority"
+            }
+          >
+            {priority.label}
+          </span>
+        )}
+
+        {material.priority_reason && (
+          <span className="material-priority-reason">
+            {material.priority_reason}
+          </span>
+        )}
+      </span>
+
+      <span className="material-open">
+        Open <span aria-hidden="true">↗</span>
+      </span>
+    </button>
+  );
+}
+
 function CourseOutline({ outline }) {
   if (!outline) return null;
 
@@ -168,6 +235,14 @@ export default function CoursePage() {
     );
   }
 
+  const sortedMaterials = sortMaterialsByPriority(materials);
+  const startHereMaterials = sortedMaterials.filter(
+    (material) => material.material_priority === "start_here"
+  );
+  const remainingMaterials = sortedMaterials.filter(
+    (material) => material.material_priority !== "start_here"
+  );
+
   return (
     <AppShell onSignOut={handleSignOut}>
       <div className="swift-page course-page">
@@ -220,11 +295,40 @@ export default function CoursePage() {
 
         <CourseOutline outline={outline} />
 
+        {startHereMaterials.length > 0 && (
+          <section className="material-priority-section">
+            <div className="material-priority-heading">
+              <div>
+                <p className="swift-eyebrow">Recommended order</p>
+                <h2>Start here.</h2>
+              </div>
+              <p>
+                These materials were reviewed as the strongest place to begin.
+              </p>
+            </div>
+
+            <div className="material-list">
+              {startHereMaterials.map((material, index) => (
+                <MaterialRow
+                  key={material.id}
+                  material={material}
+                  index={index}
+                  onOpen={(materialId) => navigate(`/view/${materialId}`)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
         <section className="course-materials">
           <div className="course-materials-heading">
             <div>
               <p className="swift-eyebrow">Study materials</p>
-              <h2>Your course collection.</h2>
+              <h2>
+                {startHereMaterials.length > 0
+                  ? "Everything else."
+                  : "Your course collection."}
+              </h2>
             </div>
             <p>{materials.length} materials</p>
           </div>
@@ -234,24 +338,25 @@ export default function CoursePage() {
               Materials have not been added for this course yet.
             </div>
           ) : (
-            <div className="material-list">
-              {materials.map((material, index) => (
-                <button
-                  key={material.id}
-                  type="button"
-                  className="material-row"
-                  onClick={() => navigate(`/view/${material.id}`)}
-                >
-                  <span className="material-number">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <span className="material-title">{material.title}</span>
-                  <span className="material-open">
-                    Open <span aria-hidden="true">↗</span>
-                  </span>
-                </button>
-              ))}
-            </div>
+            <>
+              {startHereMaterials.length === 0 && (
+                <p className="material-review-note">
+                  Materials will appear in reviewed priority order as the course
+                  collection is checked.
+                </p>
+              )}
+
+              <div className="material-list">
+                {remainingMaterials.map((material, index) => (
+                  <MaterialRow
+                    key={material.id}
+                    material={material}
+                    index={index + startHereMaterials.length}
+                    onOpen={(materialId) => navigate(`/view/${materialId}`)}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </section>
       </div>

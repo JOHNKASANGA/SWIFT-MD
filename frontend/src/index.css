@@ -3631,3 +3631,95 @@ button {
   font-weight: 650;
   overflow-wrap: anywhere;
 }
+
+/* Material review priority */
+.material-priority-section {
+  margin-top: 70px;
+}
+
+.material-priority-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #dededa;
+}
+
+.material-priority-heading h2 {
+  margin: 0;
+  color: #171717;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2.25rem, 4vw, 3.6rem);
+  font-weight: 500;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.material-priority-heading > p,
+.material-review-note {
+  margin: 0;
+  color: #777771;
+  font-size: 0.82rem;
+  font-weight: 650;
+  line-height: 1.55;
+}
+
+.material-priority-heading > p {
+  max-width: 280px;
+  text-align: right;
+}
+
+.material-review-note {
+  margin: 18px 0;
+}
+
+.material-row-content {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px 9px;
+}
+
+.material-priority {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #f0f0ec;
+  color: #595954;
+  font-size: 0.65rem;
+  font-weight: 850;
+  letter-spacing: 0.065em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.material-priority.is-start-here {
+  background: #171717;
+  color: #ffffff;
+}
+
+.material-priority-reason {
+  flex-basis: 100%;
+  color: #777771;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+@media (max-width: 760px) {
+  .material-priority-section {
+    margin-top: 52px;
+  }
+
+  .material-priority-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 13px;
+  }
+
+  .material-priority-heading > p {
+    max-width: none;
+    text-align: left;
+  }
+}

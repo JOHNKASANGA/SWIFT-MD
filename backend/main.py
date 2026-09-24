@@ -349,6 +349,16 @@ MATERIAL_CATEGORIES = {
 }
 
 
+MATERIAL_PRIORITIES = {
+    "start_here",
+    "core",
+    "recommended",
+    "supplementary",
+    "reference",
+    "unreviewed",
+}
+
+
 def require_admin(x_admin_key: Optional[str]) -> None:
     expected_key = os.getenv("ADMIN_API_KEY")
 
@@ -613,6 +623,12 @@ class CourseQuizRequest(BaseModel):
 class MaterialClassificationBatchRequest(BaseModel):
     limit: int = Field(default=3, ge=1, le=5)
     retry_failed: bool = False
+
+
+class MaterialReviewRequest(BaseModel):
+    category: Optional[str] = None
+    material_priority: Optional[str] = None
+    priority_reason: Optional[str] = Field(default=None, max_length=500)
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -892,6 +908,105 @@ def classify_materials(
         "requested": request.limit,
         "processed_count": len(processed),
         "processed": processed,
+    }
+
+
+@app.patch("/admin/materials/{material_id}/review")
+def review_material(
+    material_id: int,
+    request: MaterialReviewRequest,
+    x_admin_key: Optional[str] = Header(default=None),
+):
+    """Record a deliberate category and/or priority correction."""
+    require_admin(x_admin_key)
+
+    if request.category is None and request.material_priority is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Provide a category, material_priority, or both.",
+        )
+
+    material_result = (
+        supabase.table("materials")
+        .select("id, title, category, material_priority")
+        .eq("id", material_id)
+        .maybe_single()
+        .execute()
+    )
+    material = material_result.data
+
+    if not material:
+        raise HTTPException(status_code=404, detail="Material not found.")
+
+    update = {}
+    review_reason = safe_text(request.priority_reason).strip() or None
+
+    if request.category is not None:
+        category = safe_text(request.category).strip().lower()
+
+        if category not in MATERIAL_CATEGORIES:
+            raise HTTPException(
+                status_code=422,
+                detail="Invalid category.",
+            )
+
+        update.update(
+            {
+                "category": category,
+                "category_confidence": 100,
+                "category_source": "manual_review",
+                "classification_status": "reviewed",
+                "classified_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+
+        if review_reason:
+            update["category_evidence"] = review_reason
+
+    if request.material_priority is not None:
+        material_priority = safe_text(request.material_priority).strip().lower()
+
+        if material_priority not in MATERIAL_PRIORITIES:
+            raise HTTPException(
+                status_code=422,
+                detail="Invalid material_priority.",
+            )
+
+        update.update(
+            {
+                "material_priority": material_priority,
+                "priority_source": "manual_review",
+                "priority_reason": review_reason,
+                "priority_updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+
+    updated_result = (
+        supabase.table("materials")
+        .update(update)
+        .eq("id", material_id)
+        .execute()
+    )
+    updated_material = (updated_result.data or [material])[0]
+
+    supabase.table("material_review_log").insert(
+        {
+            "material_id": material_id,
+            "previous_category": material.get("category"),
+            "new_category": updated_material.get("category"),
+            "previous_priority": material.get("material_priority"),
+            "new_priority": updated_material.get("material_priority"),
+            "review_reason": review_reason,
+        }
+    ).execute()
+
+    return {
+        "id": material_id,
+        "title": safe_text(updated_material.get("title")),
+        "category": updated_material.get("category"),
+        "material_priority": updated_material.get("material_priority"),
+        "priority_reason": updated_material.get("priority_reason"),
+        "status": "reviewed",
     }
 
 
