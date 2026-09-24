@@ -1462,21 +1462,31 @@ button {
   line-height: 1.6;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
   .public-header {
-    width: min(100% - 28px, 1180px);
+    width: min(calc(100% - 32px), 680px);
     min-height: 68px;
   }
 
   .welcome-main,
   .auth-main {
-    width: min(100% - 28px, 1180px);
-    grid-template-columns: 1fr;
+    width: min(calc(100% - 32px), 680px);
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .welcome-main {
     gap: 38px;
     padding: 53px 0 65px;
+  }
+
+  .welcome-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .welcome-actions > button {
+    width: 100%;
+    min-width: 0;
   }
 
   .welcome-copy h1 {
