@@ -3,8 +3,9 @@ import json
 import random
 import base64
 import secrets
+import re
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from typing import Optional
@@ -142,15 +143,45 @@ CLASSIFICATION_JSON_SCHEMA = {
 }
 
 
+class TransientClassificationError(RuntimeError):
+    """A provider issue that should be retried later, not marked permanent."""
+
+
+def safe_text(value: object) -> str:
+    """Remove invalid Unicode surrogates before JSON, HTTP, or Supabase work."""
+    return str(value or "").encode("utf-8", "replace").decode("utf-8")
+
+
+def retry_delay_seconds(response: Optional[httpx.Response], attempt: int) -> int:
+    if response is not None:
+        retry_after = response.headers.get("retry-after", "").strip()
+
+        try:
+            return max(5, min(int(float(retry_after)) + 1, 180))
+        except ValueError:
+            pass
+
+        retry_match = re.search(
+            r"retry(?:\s+in|\s+after)?\s+(\d+(?:\.\d+)?)\s*s?",
+            response.text,
+            re.IGNORECASE,
+        )
+
+        if retry_match:
+            return max(5, min(int(float(retry_match.group(1))) + 1, 180))
+
+    return min(15 * (2 ** attempt), 180)
+
+
 def classify_with_gemini(
     prompt: str,
     image_bytes: Optional[bytes] = None,
 ) -> dict:
-    """Classify one material with Gemini structured JSON output."""
+    """Classify one material with structured Gemini output and bounded retries."""
     if not GEMINI_API_KEY:
         raise RuntimeError("GEMINI_API_KEY is not configured.")
 
-    parts = [{"text": prompt}]
+    parts = [{"text": safe_text(prompt)}]
 
     if image_bytes:
         image_data = base64.b64encode(image_bytes).decode("ascii")
@@ -163,37 +194,53 @@ def classify_with_gemini(
             }
         )
 
-    response = httpx.post(
-        f"{GEMINI_URL}/{GEMINI_MODEL}:generateContent",
-        headers={
-            "x-goog-api-key": GEMINI_API_KEY,
-            "Content-Type": "application/json",
-        },
-        json={
-            "contents": [{"role": "user", "parts": parts}],
-            "generationConfig": {
-                "temperature": 0,
-                "maxOutputTokens": 220,
-                "responseMimeType": "application/json",
-                "responseJsonSchema": CLASSIFICATION_JSON_SCHEMA,
-            },
-        },
-        timeout=90.0,
-    )
+    last_error = "Gemini did not return a usable classification."
 
-    if not response.is_success:
-        raise RuntimeError(
-            f"Gemini request failed ({response.status_code}): "
-            f"{response.text[:500]}"
-        )
+    for attempt in range(5):
+        response = None
 
-    try:
-        content = response.json()["candidates"][0]["content"]["parts"][0]["text"]
-        return parse_json(content)
-    except (KeyError, IndexError, TypeError, json.JSONDecodeError) as error:
-        raise RuntimeError(
-            f"Gemini returned invalid classification JSON: {error}"
-        ) from error
+        try:
+            response = httpx.post(
+                f"{GEMINI_URL}/{GEMINI_MODEL}:generateContent",
+                headers={
+                    "x-goog-api-key": GEMINI_API_KEY,
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "contents": [{"role": "user", "parts": parts}],
+                    "generationConfig": {
+                        "temperature": 0,
+                        "maxOutputTokens": 220,
+                        "responseMimeType": "application/json",
+                        "responseJsonSchema": CLASSIFICATION_JSON_SCHEMA,
+                    },
+                },
+                timeout=90.0,
+            )
+        except httpx.RequestError as error:
+            last_error = f"Gemini network error: {safe_text(error)}"
+        else:
+            if response.status_code in {429, 500, 502, 503, 504}:
+                last_error = (
+                    f"Gemini temporary error ({response.status_code}): "
+                    f"{safe_text(response.text)[:500]}"
+                )
+            elif not response.is_success:
+                raise RuntimeError(
+                    f"Gemini request failed ({response.status_code}): "
+                    f"{safe_text(response.text)[:500]}"
+                )
+            else:
+                try:
+                    content = response.json()["candidates"][0]["content"]["parts"][0]["text"]
+                    return parse_json(content)
+                except (KeyError, IndexError, TypeError, json.JSONDecodeError) as error:
+                    last_error = f"Gemini returned invalid classification JSON: {error}"
+
+        if attempt < 4:
+            time.sleep(retry_delay_seconds(response, attempt))
+
+    raise TransientClassificationError(last_error)
 
 
 def classify_with_provider(
@@ -635,6 +682,70 @@ def material_classification_status(
     }
 
 
+@app.post("/admin/recover-stale-material-classifications")
+def recover_stale_material_classifications(
+    stale_after_minutes: int = 30,
+    x_admin_key: Optional[str] = Header(default=None),
+):
+    """Return abandoned processing records to pending work."""
+    require_admin(x_admin_key)
+
+    if not 5 <= stale_after_minutes <= 1440:
+        raise HTTPException(
+            status_code=422,
+            detail="stale_after_minutes must be between 5 and 1440.",
+        )
+
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=stale_after_minutes)
+    result = (
+        supabase.table("materials")
+        .select("id, title, classified_at")
+        .eq("classification_status", "processing")
+        .execute()
+    )
+
+    recovered = []
+
+    for material in result.data or []:
+        started_at = material.get("classified_at")
+        is_stale = not started_at
+
+        if started_at:
+            try:
+                parsed_started_at = datetime.fromisoformat(
+                    started_at.replace("Z", "+00:00")
+                )
+
+                if parsed_started_at.tzinfo is None:
+                    parsed_started_at = parsed_started_at.replace(tzinfo=timezone.utc)
+
+                is_stale = parsed_started_at <= cutoff
+            except (TypeError, ValueError):
+                is_stale = True
+
+        if is_stale:
+            supabase.table("materials").update(
+                {
+                    "classification_status": "pending",
+                    "classification_error": "Recovered after an interrupted classification attempt.",
+                    "classified_at": None,
+                }
+            ).eq("id", material["id"]).execute()
+
+            recovered.append(
+                {
+                    "id": material["id"],
+                    "title": safe_text(material.get("title")),
+                }
+            )
+
+    return {
+        "stale_after_minutes": stale_after_minutes,
+        "recovered_count": len(recovered),
+        "recovered": recovered,
+    }
+
+
 @app.post("/admin/classify-materials")
 def classify_materials(
     request: MaterialClassificationBatchRequest,
@@ -643,6 +754,7 @@ def classify_materials(
     require_admin(x_admin_key)
 
     statuses = ["pending"]
+
     if request.retry_failed:
         statuses.append("failed")
 
@@ -660,17 +772,20 @@ def classify_materials(
 
     for material in materials:
         material_id = material["id"]
+        material_title = safe_text(material.get("title"))
+        started_at = datetime.now(timezone.utc).isoformat()
 
         supabase.table("materials").update(
             {
                 "classification_status": "processing",
                 "classification_error": None,
+                "classified_at": started_at,
             }
         ).eq("id", material_id).execute()
 
         try:
             sample = get_material_sample(material)
-            text = sample.get("text", "")
+            text = safe_text(sample.get("text", ""))
             image_bytes = sample.get("image_bytes", b"")
 
             if len(text.strip()) >= 250:
@@ -685,7 +800,7 @@ def classify_materials(
                     "category": classification["category"],
                     "category_confidence": classification["confidence"],
                     "category_source": "content_analysis",
-                    "category_evidence": classification["evidence"],
+                    "category_evidence": safe_text(classification["evidence"])[:500],
                     "classification_status": status,
                     "classification_error": None,
                     "classified_at": datetime.now(timezone.utc).isoformat(),
@@ -702,7 +817,7 @@ def classify_materials(
                     "category": classification["category"],
                     "category_confidence": classification["confidence"],
                     "category_source": "content_analysis",
-                    "category_evidence": classification["evidence"],
+                    "category_evidence": safe_text(classification["evidence"])[:500],
                     "classification_status": status,
                     "classification_error": None,
                     "classified_at": datetime.now(timezone.utc).isoformat(),
@@ -714,7 +829,7 @@ def classify_materials(
                     "category_source": "unreviewed",
                     "category_evidence": None,
                     "classification_status": "needs_review",
-                    "classification_error": (
+                    "classification_error": safe_text(
                         sample.get("error")
                         or "No extractable document text or OCR image was available."
                     )[:500],
@@ -728,17 +843,38 @@ def classify_materials(
             processed.append(
                 {
                     "id": material_id,
-                    "title": material["title"],
+                    "title": material_title,
                     "category": update["category"],
                     "confidence": update["category_confidence"],
                     "status": update["classification_status"],
                 }
             )
+        except TransientClassificationError as error:
+            message = safe_text(error)[:500]
+
+            supabase.table("materials").update(
+                {
+                    "classification_status": "pending",
+                    "classification_error": message,
+                    "classified_at": None,
+                }
+            ).eq("id", material_id).execute()
+
+            processed.append(
+                {
+                    "id": material_id,
+                    "title": material_title,
+                    "status": "deferred",
+                    "error": message[:180],
+                }
+            )
         except Exception as error:
+            message = safe_text(error)[:500]
+
             supabase.table("materials").update(
                 {
                     "classification_status": "failed",
-                    "classification_error": str(error)[:500],
+                    "classification_error": message,
                     "classified_at": datetime.now(timezone.utc).isoformat(),
                 }
             ).eq("id", material_id).execute()
@@ -746,9 +882,9 @@ def classify_materials(
             processed.append(
                 {
                     "id": material_id,
-                    "title": material["title"],
+                    "title": material_title,
                     "status": "failed",
-                    "error": str(error)[:180],
+                    "error": message[:180],
                 }
             )
 

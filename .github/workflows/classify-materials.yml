@@ -8,8 +8,13 @@ on:
         required: false
         default: false
         type: boolean
+      max_materials:
+        description: Maximum materials to process in this run
+        required: false
+        default: "25"
+        type: string
   schedule:
-    - cron: "17,47 * * * *"
+    - cron: "17 */4 * * *"
 
 concurrency:
   group: swift-material-classifier
@@ -18,20 +23,26 @@ concurrency:
 jobs:
   classify:
     runs-on: ubuntu-latest
-    timeout-minutes: 330
+    timeout-minutes: 120
     env:
       BACKEND_URL: https://swift-md-backend.onrender.com
       SWIFT_ADMIN_KEY: ${{ secrets.SWIFT_ADMIN_KEY }}
       RETRY_FAILED: ${{ inputs.retry_failed || 'false' }}
+      MAX_MATERIALS: ${{ inputs.max_materials || '25' }}
 
     steps:
-      - name: Process pending materials
+      - name: Process a paced material batch
         shell: bash
         run: |
           set -uo pipefail
 
           if [ -z "$SWIFT_ADMIN_KEY" ]; then
             echo "Missing GitHub Actions secret: SWIFT_ADMIN_KEY"
+            exit 1
+          fi
+
+          if ! [[ "$MAX_MATERIALS" =~ ^[1-9][0-9]*$ ]]; then
+            echo "MAX_MATERIALS must be a positive whole number."
             exit 1
           fi
 
@@ -43,18 +54,11 @@ jobs:
 
           consecutive_errors=0
 
-          while true; do
+          for request_number in $(seq 1 "$MAX_MATERIALS"); do
             response_file="$(mktemp)"
 
             status_code="$(
-              curl -sS --max-time 180 \
-                -o "$response_file" \
-                -w "%{http_code}" \
-                -X POST "$BACKEND_URL/admin/classify-materials" \
-                -H "Content-Type: application/json" \
-                -H "x-admin-key: $SWIFT_ADMIN_KEY" \
-                --data "$payload" \
-              || true
+              curl -sS --max-time 240                 -o "$response_file"                 -w "%{http_code}"                 -X POST "$BACKEND_URL/admin/classify-materials"                 -H "Content-Type: application/json"                 -H "x-admin-key: $SWIFT_ADMIN_KEY"                 --data "$payload"               || true
             )"
 
             response="$(cat "$response_file")"
@@ -62,14 +66,14 @@ jobs:
 
             if [ "$status_code" != "200" ]; then
               consecutive_errors=$((consecutive_errors + 1))
-              echo "Request error $consecutive_errors of 10. HTTP $status_code: $response"
+              echo "Request error $consecutive_errors of 5. HTTP $status_code: $response"
 
-              if [ "$consecutive_errors" -ge 10 ]; then
-                echo "Stopping after 10 consecutive request errors."
+              if [ "$consecutive_errors" -ge 5 ]; then
+                echo "Stopping after five consecutive request errors."
                 exit 1
               fi
 
-              sleep 30
+              sleep 60
               continue
             fi
 
@@ -77,11 +81,19 @@ jobs:
             echo "$response" | jq -c .
 
             processed_count="$(printf '%s' "$response" | jq -r '.processed_count // 0')"
+            deferred_count="$(printf '%s' "$response" | jq '[.processed[]? | select(.status == "deferred")] | length')"
 
             if [ "$processed_count" = "0" ]; then
               echo "No matching materials remain."
               exit 0
             fi
 
-            sleep 1
+            if [ "$deferred_count" -gt 0 ]; then
+              echo "Provider is cooling down. Leaving remaining work for the next scheduled run."
+              exit 0
+            fi
+
+            sleep 15
           done
+
+          echo "Reached this run's safe limit of $MAX_MATERIALS materials."
