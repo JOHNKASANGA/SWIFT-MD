@@ -24,7 +24,19 @@ function sortMaterialsByPriority(materials) {
 
     if (priorityDifference !== 0) return priorityDifference;
 
-    return first.title.localeCompare(second.title);
+    const firstOrder = Number.isInteger(first.material_sort_order)
+      ? first.material_sort_order
+      : Number.MAX_SAFE_INTEGER;
+    const secondOrder = Number.isInteger(second.material_sort_order)
+      ? second.material_sort_order
+      : Number.MAX_SAFE_INTEGER;
+
+    if (firstOrder !== secondOrder) return firstOrder - secondOrder;
+
+    return first.title.localeCompare(second.title, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
   });
 }
 

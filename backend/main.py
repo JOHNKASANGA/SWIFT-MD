@@ -628,6 +628,7 @@ class MaterialClassificationBatchRequest(BaseModel):
 class MaterialReviewRequest(BaseModel):
     category: Optional[str] = None
     material_priority: Optional[str] = None
+    material_sort_order: Optional[int] = Field(default=None, ge=0, le=10000)
     priority_reason: Optional[str] = Field(default=None, max_length=500)
 
 
@@ -920,7 +921,11 @@ def review_material(
     """Record a deliberate category and/or priority correction."""
     require_admin(x_admin_key)
 
-    if request.category is None and request.material_priority is None:
+    if (
+        request.category is None
+        and request.material_priority is None
+        and request.material_sort_order is None
+    ):
         raise HTTPException(
             status_code=422,
             detail="Provide a category, material_priority, or both.",
@@ -928,7 +933,7 @@ def review_material(
 
     material_result = (
         supabase.table("materials")
-        .select("id, title, category, material_priority")
+        .select("id, title, category, material_priority, material_sort_order")
         .eq("id", material_id)
         .maybe_single()
         .execute()
@@ -981,6 +986,15 @@ def review_material(
             }
         )
 
+    if request.material_sort_order is not None:
+        update.update(
+            {
+                "material_sort_order": request.material_sort_order,
+                "priority_source": "manual_review",
+                "priority_updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+
     updated_result = (
         supabase.table("materials")
         .update(update)
@@ -996,6 +1010,8 @@ def review_material(
             "new_category": updated_material.get("category"),
             "previous_priority": material.get("material_priority"),
             "new_priority": updated_material.get("material_priority"),
+            "previous_sort_order": material.get("material_sort_order"),
+            "new_sort_order": updated_material.get("material_sort_order"),
             "review_reason": review_reason,
         }
     ).execute()
@@ -1005,6 +1021,7 @@ def review_material(
         "title": safe_text(updated_material.get("title")),
         "category": updated_material.get("category"),
         "material_priority": updated_material.get("material_priority"),
+        "material_sort_order": updated_material.get("material_sort_order"),
         "priority_reason": updated_material.get("priority_reason"),
         "status": "reviewed",
     }
