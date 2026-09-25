@@ -133,6 +133,7 @@ CLASSIFICATION_JSON_SCHEMA = {
                 "practice",
                 "textbooks",
                 "references",
+                "laboratory",
                 "other",
             ],
         },
@@ -345,6 +346,7 @@ MATERIAL_CATEGORIES = {
     "practice",
     "textbooks",
     "references",
+    "laboratory",
     "other",
 }
 
@@ -400,8 +402,9 @@ Choose exactly one category:
 - assignments: assignments, coursework, take-home tasks, or submitted task sheets
 - practice: drills, exercises, practice problems, or revision questions not presented as past exams
 - textbooks: a textbook, textbook chapter, or substantial reference book
-- references: external standards, articles, reports, or supporting documents
-- other: content that does not fit the categories above
+-- references: external standards, articles, reports, or supporting documents
+-- laboratory: lab manuals, experiment sheets, apparatus guides, reports, experimental data, or practical work
+-- other: content that does not fit the categories above
 
 Rules:
 - Base the choice on the document extract, not merely the filename.
@@ -449,8 +452,9 @@ Choose exactly one category:
 - assignments
 - practice
 - textbooks
-- references
-- other
+-- references
+-- laboratory
+-- other
 
 Use visible document content, not only the filename. Confidence must be an
 integer from 0 to 100. Evidence must be a short visible phrase supporting the

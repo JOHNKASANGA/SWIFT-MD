@@ -25,6 +25,12 @@ const MATERIAL_SECTIONS = [
     description: "Coursework, task sheets, and assignment solutions.",
   },
   {
+    key: "laboratory",
+    label: "Laboratory work",
+    description:
+      "Lab manuals, experiments, apparatus, reports, and practical data.",
+  },
+  {
     key: "practice",
     label: "Practice and tutorials",
     description: "Exercises, drills, worked problems, and tutorials.",
