@@ -3,46 +3,67 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import AppShell from "../components/AppShell";
 
-const MATERIAL_PRIORITY = {
-  start_here: { label: "Start here", rank: 0 },
-  core: { label: "Core", rank: 1 },
-  recommended: { label: "Recommended", rank: 2 },
-  supplementary: { label: "Supplementary", rank: 3 },
-  reference: { label: "Reference", rank: 4 },
-  unreviewed: { label: null, rank: 5 },
-};
+const MATERIAL_SECTIONS = [
+  {
+    key: "lecture_notes",
+    label: "Lecture notes",
+    description: "Lectures, handouts, and topic explanations.",
+  },
+  {
+    key: "slides",
+    label: "Slides",
+    description: "Presentation decks and visual teaching material.",
+  },
+  {
+    key: "past_questions",
+    label: "Past questions",
+    description: "Previous tests, exams, and worked past papers.",
+  },
+  {
+    key: "assignments",
+    label: "Assignments",
+    description: "Coursework, task sheets, and assignment solutions.",
+  },
+  {
+    key: "practice",
+    label: "Practice and tutorials",
+    description: "Exercises, drills, worked problems, and tutorials.",
+  },
+  {
+    key: "textbooks",
+    label: "Textbooks",
+    description: "Main books and substantial course texts.",
+  },
+  {
+    key: "references",
+    label: "References",
+    description: "Supporting articles, standards, and specialist reading.",
+  },
+  {
+    key: "other",
+    label: "Other materials",
+    description: "Materials still being reviewed or not yet grouped.",
+  },
+];
 
-function getMaterialPriority(material) {
-  return MATERIAL_PRIORITY[material.material_priority] ||
-    MATERIAL_PRIORITY.unreviewed;
+function getMaterialSection(material) {
+  const category = material.category || "uncategorized";
+
+  return MATERIAL_SECTIONS.some((section) => section.key === category)
+    ? category
+    : "other";
 }
 
-function sortMaterialsByPriority(materials) {
-  return [...materials].sort((first, second) => {
-    const priorityDifference =
-      getMaterialPriority(first).rank - getMaterialPriority(second).rank;
-
-    if (priorityDifference !== 0) return priorityDifference;
-
-    const firstOrder = Number.isInteger(first.material_sort_order)
-      ? first.material_sort_order
-      : Number.MAX_SAFE_INTEGER;
-    const secondOrder = Number.isInteger(second.material_sort_order)
-      ? second.material_sort_order
-      : Number.MAX_SAFE_INTEGER;
-
-    if (firstOrder !== secondOrder) return firstOrder - secondOrder;
-
-    return first.title.localeCompare(second.title, undefined, {
+function sortMaterials(materials) {
+  return [...materials].sort((first, second) =>
+    first.title.localeCompare(second.title, undefined, {
       numeric: true,
       sensitivity: "base",
-    });
-  });
+    })
+  );
 }
 
 function MaterialRow({ material, index, onOpen }) {
-  const priority = getMaterialPriority(material);
-
   return (
     <button
       type="button"
@@ -55,24 +76,6 @@ function MaterialRow({ material, index, onOpen }) {
 
       <span className="material-row-content">
         <span className="material-title">{material.title}</span>
-
-        {priority.label && (
-          <span
-            className={
-              priority.label === "Start here"
-                ? "material-priority is-start-here"
-                : "material-priority"
-            }
-          >
-            {priority.label}
-          </span>
-        )}
-
-        {material.priority_reason && (
-          <span className="material-priority-reason">
-            {material.priority_reason}
-          </span>
-        )}
       </span>
 
       <span className="material-open">
@@ -247,13 +250,14 @@ export default function CoursePage() {
     );
   }
 
-  const sortedMaterials = sortMaterialsByPriority(materials);
-  const startHereMaterials = sortedMaterials.filter(
-    (material) => material.material_priority === "start_here"
-  );
-  const remainingMaterials = sortedMaterials.filter(
-    (material) => material.material_priority !== "start_here"
-  );
+  const materialSections = MATERIAL_SECTIONS.map((section) => ({
+    ...section,
+    materials: sortMaterials(
+      materials.filter(
+        (material) => getMaterialSection(material) === section.key
+      )
+    ),
+  })).filter((section) => section.materials.length > 0);
 
   return (
     <AppShell onSignOut={handleSignOut}>
@@ -307,40 +311,11 @@ export default function CoursePage() {
 
         <CourseOutline outline={outline} />
 
-        {startHereMaterials.length > 0 && (
-          <section className="material-priority-section">
-            <div className="material-priority-heading">
-              <div>
-                <p className="swift-eyebrow">Recommended order</p>
-                <h2>Start here.</h2>
-              </div>
-              <p>
-                These materials were reviewed as the strongest place to begin.
-              </p>
-            </div>
-
-            <div className="material-list">
-              {startHereMaterials.map((material, index) => (
-                <MaterialRow
-                  key={material.id}
-                  material={material}
-                  index={index}
-                  onOpen={(materialId) => navigate(`/view/${materialId}`)}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-
         <section className="course-materials">
           <div className="course-materials-heading">
             <div>
               <p className="swift-eyebrow">Study materials</p>
-              <h2>
-                {startHereMaterials.length > 0
-                  ? "Everything else."
-                  : "Your course collection."}
-              </h2>
+              <h2>Your course collection.</h2>
             </div>
             <p>{materials.length} materials</p>
           </div>
@@ -350,25 +325,36 @@ export default function CoursePage() {
               Materials have not been added for this course yet.
             </div>
           ) : (
-            <>
-              {startHereMaterials.length === 0 && (
-                <p className="material-review-note">
-                  Materials will appear in reviewed priority order as the course
-                  collection is checked.
-                </p>
-              )}
+            <div className="material-category-list">
+              {materialSections.map((section) => (
+                <section
+                  key={section.key}
+                  className="material-category-section"
+                  aria-labelledby={`material-category-${section.key}`}
+                >
+                  <div className="material-category-heading">
+                    <div>
+                      <h3 id={`material-category-${section.key}`}>
+                        {section.label}
+                      </h3>
+                      <p>{section.description}</p>
+                    </div>
+                    <span>{section.materials.length}</span>
+                  </div>
 
-              <div className="material-list">
-                {remainingMaterials.map((material, index) => (
-                  <MaterialRow
-                    key={material.id}
-                    material={material}
-                    index={index + startHereMaterials.length}
-                    onOpen={(materialId) => navigate(`/view/${materialId}`)}
-                  />
-                ))}
-              </div>
-            </>
+                  <div className="material-list">
+                    {section.materials.map((material, index) => (
+                      <MaterialRow
+                        key={material.id}
+                        material={material}
+                        index={index}
+                        onOpen={(materialId) => navigate(`/view/${materialId}`)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
           )}
         </section>
       </div>
