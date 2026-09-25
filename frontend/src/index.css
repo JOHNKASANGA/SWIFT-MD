@@ -3838,22 +3838,3 @@ button {
   font-size: 0.78rem;
   font-weight: 800;
 }
-
-@media (max-width: 760px) {
-  .material-category-list {
-    gap: 40px;
-    padding-top: 28px;
-  }
-
-  .material-category-heading {
-    align-items: flex-start;
-  }
-
-  .material-category-heading h3 {
-    font-size: 1.65rem;
-  }
-
-  .material-category-heading p {
-    max-width: 280px;
-  }
-}
