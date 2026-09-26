@@ -5,6 +5,10 @@ import base64
 import secrets
 import re
 import time
+import hmac
+import hashlib
+import smtplib
+from email.mime.text import MIMEText
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
@@ -12,6 +16,7 @@ import httpx
 from typing import Optional
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from anthropic import Anthropic
 from dotenv import load_dotenv
@@ -374,6 +379,179 @@ def require_admin(x_admin_key: Optional[str]) -> None:
     if not x_admin_key or not secrets.compare_digest(x_admin_key, expected_key):
         raise HTTPException(status_code=401, detail="Invalid admin key.")
 
+def make_approve_token(submission_id: int) -> str:
+    secret = os.getenv("ADMIN_API_KEY")
+    if not secret:
+        raise RuntimeError("ADMIN_API_KEY must be configured to sign approve links.")
+    return hmac.new(
+        secret.encode(), f"approve:{submission_id}".encode(), hashlib.sha256
+    ).hexdigest()
+
+
+def send_admin_email(subject: str, html_body: str) -> None:
+    gmail_address = os.getenv("GMAIL_ADDRESS")
+    gmail_password = os.getenv("GMAIL_APP_PASSWORD")
+    notify_to = os.getenv("ADMIN_NOTIFY_EMAIL")
+
+    if not gmail_address or not gmail_password or not notify_to:
+        print("Email not sent: Gmail credentials or ADMIN_NOTIFY_EMAIL not configured.")
+        return
+
+    message = MIMEText(html_body, "html")
+    message["Subject"] = subject
+    message["From"] = gmail_address
+    message["To"] = notify_to
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(gmail_address, gmail_password)
+        server.sendmail(gmail_address, [notify_to], message.as_string())
+
+
+def confirmation_page(message: str, success: bool = True) -> str:
+    accent = "#315bea" if success else "#b3261e"
+    if success:
+        icon_path = '<path d="M14 24.5L20.5 31L34 17" stroke="#315bea" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
+    else:
+        icon_path = '<path d="M17 17L31 31M31 17L17 31" stroke="#b3261e" stroke-width="2.5" stroke-linecap="round"/>'
+
+    return f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Swift</title></head>
+<body style="font-family: Georgia, 'Times New Roman', serif; background:#ffffff; color:#171717; display:flex; align-items:center; justify-content:center; height:100vh; margin:0;">
+  <div style="text-align:center; max-width:420px; padding:24px;">
+    <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="22" stroke="{accent}" stroke-width="2"/>
+      {icon_path}
+    </svg>
+    <p style="margin-top:20px; font-size:1.1rem; line-height:1.5;">{message}</p>
+  </div>
+</body></html>"""
+
+class MaterialSubmissionNotifyRequest(BaseModel):
+    submission_id: int
+
+
+@app.post("/material-submissions/notify")
+def notify_material_submission(request: MaterialSubmissionNotifyRequest):
+    """Called by the frontend right after a student submits a suggestion."""
+    result = (
+        supabase.table("material_submissions")
+        .select("*")
+        .eq("id", request.submission_id)
+        .limit(1)
+        .execute()
+    )
+    rows = result.data or []
+    submission = rows[0] if rows else None
+
+    if not submission or submission.get("status") != "pending":
+        return {"notified": False}
+    if submission.get("notified_at"):
+        return {"notified": False}
+
+    backend_url = os.getenv("BACKEND_PUBLIC_URL", "").rstrip("/")
+    token = make_approve_token(submission["id"])
+    approve_link = f"{backend_url}/admin/material-submissions/{submission['id']}/approve/{token}"
+
+    html_body = f"""
+    <div style="font-family: Georgia, 'Times New Roman', serif; color:#171717; max-width:560px;">
+      <p style="text-transform:uppercase; letter-spacing:0.08em; font-size:0.75rem; color:#777771; font-weight:700;">New material suggestion</p>
+      <h2 style="font-weight:500; letter-spacing:-0.02em;">{submission['title']}</h2>
+      <table style="font-family: sans-serif; font-size:0.95rem; color:#30302d; border-collapse:collapse;">
+        <tr><td style="padding:4px 12px 4px 0; color:#777771;">Course</td><td>{submission['course_code']}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0; color:#777771;">Category</td><td>{submission.get('category', '')}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0; color:#777771;">Link</td><td><a href="{submission['url']}">{submission['url']}</a></td></tr>
+        <tr><td style="padding:4px 12px 4px 0; color:#777771;">Note</td><td>{submission.get('note') or '\u2014'}</td></tr>
+      </table>
+      <p style="margin-top:24px;">
+        <a href="{approve_link}" style="background:#315bea; color:#ffffff; text-decoration:none; padding:12px 22px; border-radius:8px; font-family: sans-serif; font-weight:600; font-size:0.9rem; display:inline-block;">
+          Approve and add to Swift
+        </a>
+      </p>
+    </div>
+    """
+
+    send_admin_email(f"New material suggestion: {submission['title']}", html_body)
+    supabase.table("material_submissions").update(
+        {"notified_at": datetime.now(timezone.utc).isoformat()}
+    ).eq("id", submission["id"]).execute()
+    return {"notified": True}
+
+
+@app.get("/admin/material-submissions/{submission_id}/approve/{token}", response_class=HTMLResponse)
+def approve_material_submission_via_email(submission_id: int, token: str):
+    expected_token = make_approve_token(submission_id)
+    if not hmac.compare_digest(expected_token, token):
+        return HTMLResponse(confirmation_page("This approval link is invalid.", success=False), status_code=403)
+
+    result = (
+        supabase.table("material_submissions")
+        .select("*")
+        .eq("id", submission_id)
+        .limit(1)
+        .execute()
+    )
+    rows = result.data or []
+    submission = rows[0] if rows else None
+
+    if not submission:
+        return HTMLResponse(confirmation_page("This submission no longer exists.", success=False), status_code=404)
+
+    if submission["status"] != "pending":
+        return HTMLResponse(confirmation_page(f"This submission was already marked \u2018{submission['status']}\u2019."))
+
+    url = safe_text(submission.get("url")).strip()
+    parsed_url = urlparse(url)
+    if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+        return HTMLResponse(confirmation_page("This submission has no valid link and could not be added.", success=False), status_code=422)
+
+    category = safe_text(submission.get("category")).strip().lower()
+    if category not in MATERIAL_CATEGORIES:
+        category = "references"
+
+    duplicate_result = (
+        supabase.table("materials")
+        .select("id, title")
+        .eq("file_url", url)
+        .limit(1)
+        .execute()
+    )
+    duplicate_rows = duplicate_result.data or []
+    if duplicate_rows:
+        return HTMLResponse(
+            confirmation_page(f"This link is already published as material {duplicate_rows[0]['id']}.", success=False),
+            status_code=409,
+        )
+
+    reviewed_at = datetime.now(timezone.utc).isoformat()
+    material_title = safe_text(submission.get("title")).strip()
+    material_summary = safe_text(submission.get("note")).strip() or None
+
+    supabase.table("materials").insert(
+        {
+            "course_code": submission["course_code"],
+            "title": material_title,
+            "file_url": url,
+            "category": category,
+            "category_confidence": 100,
+            "category_source": "manual_review",
+            "category_evidence": "Approved student submission via email link.",
+            "classification_status": "reviewed",
+            "classified_at": reviewed_at,
+            "source_name": parsed_url.netloc,
+            "material_summary": material_summary,
+            "resource_kind": "website",
+        }
+    ).execute()
+
+    supabase.table("material_submissions").update(
+        {
+            "status": "approved",
+            "review_note": "Approved via one-click email link.",
+            "reviewed_at": reviewed_at,
+        }
+    ).eq("id", submission_id).execute()
+
+    return HTMLResponse(confirmation_page(f"\u201c{material_title}\u201d was added to {submission['course_code']} on Swift."))
 
 def get_material_sample(material: dict) -> dict:
     cached_text = material.get("extracted_text")

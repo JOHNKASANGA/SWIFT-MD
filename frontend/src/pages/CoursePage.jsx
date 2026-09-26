@@ -122,34 +122,52 @@ function MaterialSuggestion({ courseCode }) {
     setStatus("");
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.getUser();
+      const { data: authData, error: authError } =
+        await supabase.auth.getUser();
       if (authError || !authData.user) {
         throw new Error("Please sign in before suggesting a material.");
       }
 
       setSubmitting(true);
-      const { error } = await supabase.from("material_submissions").insert({
-        course_code: courseCode,
-        title: form.title.trim(),
-        url: form.url.trim(),
-        category: form.category,
-        note: form.note.trim() || null,
-        submitted_by: authData.user.id,
-      });
+      const { data: inserted, error } = await supabase
+        .from("material_submissions")
+        .insert({
+          course_code: courseCode,
+          title: form.title.trim(),
+          url: form.url.trim(),
+          category: form.category,
+          note: form.note.trim() || null,
+          submitted_by: authData.user.id,
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
+      fetch(`${import.meta.env.VITE_BACKEND_URL}/material-submissions/notify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ submission_id: inserted.id }),
+      }).catch(() => {});
+
       setForm({ title: "", url: "", category: "references", note: "" });
-      setStatus("Thanks. Your suggestion is pending review before it appears on Swift.");
+      setStatus(
+        "Thanks. Your suggestion is pending review before it appears on Swift."
+      );
     } catch (submissionError) {
-      setStatus(submissionError.message || "Your suggestion could not be submitted.");
+      setStatus(
+        submissionError.message || "Your suggestion could not be submitted."
+      );
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <section className="material-suggestion" aria-labelledby="material-suggestion-title">
+    <section
+      className="material-suggestion"
+      aria-labelledby="material-suggestion-title"
+    >
       <div>
         <p className="swift-eyebrow">Help improve this course</p>
         <h2 id="material-suggestion-title">Can’t find a useful material?</h2>
@@ -165,7 +183,8 @@ function MaterialSuggestion({ courseCode }) {
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
       >
-        {open ? "Close form" : "Suggest a material"} <span aria-hidden="true">→</span>
+        {open ? "Close form" : "Suggest a material"}{" "}
+        <span aria-hidden="true">→</span>
       </button>
 
       {open && (
@@ -175,7 +194,9 @@ function MaterialSuggestion({ courseCode }) {
             <input
               required
               value={form.title}
-              onChange={(event) => setForm({ ...form, title: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, title: event.target.value })
+              }
               placeholder="For example, NPTEL Fluid Mechanics"
             />
           </label>
@@ -186,19 +207,64 @@ function MaterialSuggestion({ courseCode }) {
               required
               type="url"
               value={form.url}
-              onChange={(event) => setForm({ ...form, url: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, url: event.target.value })
+              }
               placeholder="https://..."
             />
           </label>
-
+          <details className="material-suggestion-help">
+            <summary>Don&apos;t have a link yet?</summary>
+            <div>
+              <p>
+                <strong>If you have a file</strong> (PDF, slides, Word doc,
+                etc.):
+              </p>
+              <ol>
+                <li>Upload the file to Google Drive.</li>
+                <li>
+                  Right-click the file and choose <strong>Share</strong>.
+                </li>
+                <li>
+                  Under General access, change it to{" "}
+                  <strong>Anyone with the link</strong>.
+                </li>
+                <li>
+                  Click <strong>Copy link</strong> and paste it into the field
+                  above.
+                </li>
+              </ol>
+              <p>
+                <strong>If you have a whole folder</strong> of materials:
+              </p>
+              <ol>
+                <li>
+                  Right-click the folder in Google Drive and choose{" "}
+                  <strong>Share</strong>.
+                </li>
+                <li>
+                  Under General access, change it to{" "}
+                  <strong>Anyone with the link</strong>.
+                </li>
+                <li>
+                  Click <strong>Copy link</strong> and paste the folder link
+                  above.
+                </li>
+              </ol>
+            </div>
+          </details>
           <label>
             Material type
             <select
               value={form.category}
-              onChange={(event) => setForm({ ...form, category: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, category: event.target.value })
+              }
             >
               {SUBMISSION_CATEGORIES.map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
+                <option key={value} value={value}>
+                  {label}
+                </option>
               ))}
             </select>
           </label>
@@ -207,14 +273,20 @@ function MaterialSuggestion({ courseCode }) {
             Why is it useful? <span>Optional</span>
             <textarea
               value={form.note}
-              onChange={(event) => setForm({ ...form, note: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, note: event.target.value })
+              }
               rows={4}
               placeholder="Which topics does it cover?"
             />
           </label>
 
           {status && <p className="material-suggestion-status">{status}</p>}
-          <button type="submit" className="swift-primary-button" disabled={submitting}>
+          <button
+            type="submit"
+            className="swift-primary-button"
+            disabled={submitting}
+          >
             {submitting ? "Submitting..." : "Submit for review"}
           </button>
         </form>
