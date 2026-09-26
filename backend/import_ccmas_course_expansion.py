@@ -263,26 +263,27 @@ COURSES = [
 
 
 def existing_course(code: str):
-    return (
+    response = (
         supabase.table("courses")
         .select("id")
         .eq("code", code)
-        .maybe_single()
+        .limit(1)
         .execute()
-        .data
     )
+    rows = response.data or []
+    return rows[0] if rows else None
 
 
 def material_exists(course_code: str, url: str) -> bool:
-    return bool(
+    response = (
         supabase.table("materials")
         .select("id")
         .eq("course_code", course_code)
         .eq("file_url", url)
-        .maybe_single()
+        .limit(1)
         .execute()
-        .data
     )
+    return bool(response.data)
 
 
 def main():
