@@ -24,14 +24,15 @@ function getMathSegment(part) {
 }
 
 function normaliseFormula(formula) {
-  return formula
-    .replace(/ /g, " ")
-    .replace(/\\\\(?=[A-Za-z])/g, "\\");
+  return formula.replace(/ /g, " ").replace(/\\\\(?=[A-Za-z])/g, "\\");
 }
 
 function MathFallback({ formula }) {
   return (
-    <code className="math-text-fallback" title="This formula could not be rendered">
+    <code
+      className="math-text-fallback"
+      title="This formula could not be rendered"
+    >
       {formula}
     </code>
   );
@@ -40,7 +41,8 @@ function MathFallback({ formula }) {
 export default function MathText({ text }) {
   if (text === null || text === undefined || text === "") return null;
 
-  const parts = String(text).split(MATH_SEGMENT_PATTERN);
+  const normalisedText = String(text).replace(/\\\\/g, "\\");
+  const parts = normalisedText.split(MATH_SEGMENT_PATTERN);
 
   return (
     <span className="math-text">

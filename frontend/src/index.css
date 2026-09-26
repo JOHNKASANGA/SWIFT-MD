@@ -137,7 +137,7 @@ button {
 
 .swift-eyebrow {
   margin: 0 0 12px;
-  color: #315bea;
+  color: #00003f;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -223,8 +223,8 @@ button {
 }
 
 .level-selector-button.is-selected {
-  border-color: #315bea;
-  background: #315bea;
+  border-color: #00003f;
+  background: #00003f;
   color: #ffffff;
   transform: translateY(-1px);
 }
@@ -244,8 +244,8 @@ button {
 }
 
 .swift-primary-button:hover {
-  background: #315bea;
-  border-color: #315bea;
+  background: #00003f;
+  border-color: #00003f;
   transform: translateY(-2px);
 }
 
@@ -315,7 +315,7 @@ button {
 }
 
 .deck-card-kicker {
-  color: #315bea;
+  color: #00003f;
   font-size: 0.7rem;
   font-weight: 850;
   letter-spacing: 0.12em;
@@ -342,7 +342,7 @@ button {
 
 .deck-card.is-selected {
   z-index: 5;
-  border-color: #315bea;
+  border-color: #00003f;
   background: #ffffff;
   box-shadow: 0 24px 38px rgba(49, 91, 234, 0.22);
 }
@@ -441,7 +441,7 @@ button {
   padding: 0;
   border: 0;
   background: transparent;
-  color: #315bea;
+  color: #00003f;
   font-size: 0.84rem;
   font-weight: 800;
 }
@@ -500,7 +500,7 @@ button {
   .swift-nav-link:hover,
   .swift-nav-link.is-active {
     background: transparent;
-    color: #315bea;
+    color: #00003f;
   }
 
   .swift-home-page {
@@ -687,7 +687,7 @@ button {
 
 .practice-course-code {
   margin: 0 0 8px;
-  color: #315bea;
+  color: #00003f;
   font-size: 0.73rem;
   font-weight: 850;
   letter-spacing: 0.1em;
@@ -729,8 +729,8 @@ button {
 }
 
 .practice-start-button:hover {
-  border-color: #315bea;
-  color: #315bea;
+  border-color: #00003f;
+  color: #00003f;
   transform: translateY(-1px);
 }
 
@@ -819,7 +819,7 @@ button {
 }
 
 .swift-back-button:hover {
-  color: #315bea;
+  color: #00003f;
 }
 
 .level-intro,
@@ -875,7 +875,7 @@ button {
 }
 
 .course-search input:focus {
-  border-bottom-color: #315bea;
+  border-bottom-color: #00003f;
 }
 
 .course-search input::placeholder {
@@ -895,7 +895,7 @@ button {
 }
 
 .course-department-filter select:focus {
-  border-color: #315bea;
+  border-color: #00003f;
 }
 
 .course-count {
@@ -941,7 +941,7 @@ button {
 
 .course-library-code,
 .material-number {
-  color: #315bea;
+  color: #00003f;
   font-size: 0.75rem;
   font-weight: 850;
   letter-spacing: 0.1em;
@@ -999,7 +999,7 @@ button {
 
 .course-action-label {
   margin: 0;
-  color: #315bea;
+  color: #00003f;
   font-size: 0.73rem;
   font-weight: 850;
   letter-spacing: 0.1em;
@@ -1022,7 +1022,7 @@ button {
   padding: 10px 0;
   border: 0;
   background: transparent;
-  color: #315bea;
+  color: #00003f;
   font-size: 0.85rem;
   font-weight: 800;
 }
@@ -1102,7 +1102,7 @@ button {
 }
 
 .material-row:hover .material-open {
-  color: #315bea;
+  color: #00003f;
 }
 
 .material-suggestion {
@@ -1188,7 +1188,7 @@ button {
 .material-suggestion-form input:focus,
 .material-suggestion-form select:focus,
 .material-suggestion-form textarea:focus {
-  border-color: #315bea;
+  border-color: #00003f;
   box-shadow: 0 0 0 3px rgba(49, 91, 234, 0.1);
 }
 
@@ -1214,7 +1214,7 @@ button {
 
 .material-suggestion-help summary {
   cursor: pointer;
-  color: #315bea;
+  color: #00003f;
   font-size: 0.83rem;
   font-weight: 700;
 }
@@ -1372,7 +1372,7 @@ button {
 }
 
 .public-header-link:hover {
-  color: #315bea;
+  color: #00003f;
 }
 
 .welcome-page,
@@ -1435,8 +1435,8 @@ button {
 }
 
 .welcome-signin-button:hover {
-  border-color: #315bea;
-  color: #315bea;
+  border-color: #00003f;
+  color: #00003f;
 }
 
 .welcome-visual {
@@ -1469,7 +1469,7 @@ button {
 
 .welcome-visual-note p {
   margin: 0 0 5px;
-  color: #315bea;
+  color: #00003f;
   font-size: 0.69rem;
   font-weight: 850;
   letter-spacing: 0.1em;
@@ -1548,7 +1548,7 @@ button {
 }
 
 .auth-form input:focus {
-  border-bottom-color: #315bea;
+  border-bottom-color: #00003f;
 }
 
 .auth-form input::placeholder {
@@ -1566,7 +1566,7 @@ button {
 
 .auth-small-link:hover,
 .auth-footer a {
-  color: #315bea;
+  color: #00003f;
 }
 
 .auth-error {
@@ -1596,8 +1596,8 @@ button {
 
 .auth-submit-button:hover,
 .auth-secondary-button:hover {
-  border-color: #315bea;
-  background: #315bea;
+  border-color: #00003f;
+  background: #00003f;
 }
 
 .auth-submit-button:disabled {
@@ -1770,7 +1770,7 @@ button {
 }
 
 .viewer-back-button:hover {
-  color: #315bea;
+  color: #00003f;
 }
 
 .viewer-title {
@@ -1786,7 +1786,7 @@ button {
 
 .viewer-external-link {
   justify-self: end;
-  color: #315bea;
+  color: #00003f;
   font-size: 0.82rem;
   font-weight: 800;
   text-decoration: none;
@@ -1962,7 +1962,7 @@ button {
 }
 
 .cgpa-mode-number {
-  color: #315bea;
+  color: #00003f;
   font-size: 0.74rem;
   font-weight: 850;
   letter-spacing: 0.1em;
@@ -1983,7 +1983,7 @@ button {
 }
 
 .cgpa-mode-option > span:last-child {
-  color: #315bea;
+  color: #00003f;
   font-size: 0.84rem;
   font-weight: 800;
 }
@@ -2015,7 +2015,7 @@ button {
   padding: 0;
   border: 0;
   background: transparent;
-  color: #315bea;
+  color: #00003f;
   font-size: 0.82rem;
   font-weight: 800;
 }
@@ -2027,7 +2027,7 @@ button {
 .cgpa-guide-example {
   grid-column: 1 / -1;
   padding: 17px 18px;
-  border-left: 2px solid #315bea;
+  border-left: 2px solid #00003f;
   background: #f1f4ff;
 }
 
@@ -2105,7 +2105,7 @@ button {
 .cgpa-semester-card-header input:focus,
 .cgpa-course-row input:focus,
 .cgpa-course-row select:focus {
-  border-color: #315bea;
+  border-color: #00003f;
 }
 
 .cgpa-record-card small {
@@ -2151,7 +2151,7 @@ button {
 }
 
 .cgpa-course-index {
-  color: #315bea;
+  color: #00003f;
   font-size: 0.72rem;
   font-weight: 850;
   letter-spacing: 0.08em;
@@ -2202,7 +2202,7 @@ button {
   padding: 0;
   border: 0;
   background: transparent;
-  color: #315bea;
+  color: #00003f;
   font-size: 0.83rem;
   font-weight: 800;
 }
@@ -2295,14 +2295,14 @@ button {
 }
 
 .cgpa-classification b {
-  color: #315bea;
+  color: #00003f;
   font-size: 0.82rem;
 }
 
 .cgpa-fresh-note {
   margin-top: 24px;
   padding: 16px 18px;
-  border-left: 2px solid #315bea;
+  border-left: 2px solid #00003f;
   background: #f1f4ff;
   color: #4f4f4a;
   font-size: 0.86rem;
@@ -2340,7 +2340,7 @@ button {
 }
 
 .cgpa-semester-card-header span {
-  color: #315bea;
+  color: #00003f;
   font-size: 0.75rem;
   font-weight: 850;
   letter-spacing: 0.09em;
@@ -2401,7 +2401,7 @@ button {
 }
 
 .cgpa-add-semester-button:hover {
-  border-color: #315bea;
+  border-color: #00003f;
 }
 
 .cgpa-workspace > .cgpa-result-panel {
@@ -2597,7 +2597,7 @@ button {
 }
 
 .quiz-exit-button:hover {
-  color: #315bea;
+  color: #00003f;
 }
 
 .quiz-timer {
@@ -2720,7 +2720,7 @@ button {
 }
 
 .quiz-topic-input input:focus {
-  border-bottom-color: #315bea;
+  border-bottom-color: #00003f;
 }
 
 .quiz-mode-grid {
@@ -2753,7 +2753,7 @@ button {
 }
 
 .quiz-mode-card > span {
-  color: #315bea;
+  color: #00003f;
   font-size: 0.72rem;
   font-weight: 850;
   letter-spacing: 0.1em;
@@ -2776,7 +2776,7 @@ button {
 }
 
 .quiz-mode-card small {
-  color: #315bea;
+  color: #00003f;
   font-size: 0.8rem;
   font-weight: 800;
 }
@@ -2793,7 +2793,7 @@ button {
 
 .quiz-question-label {
   margin: 0 0 18px;
-  color: #315bea;
+  color: #00003f;
   font-size: 0.73rem;
   font-weight: 850;
   letter-spacing: 0.1em;
@@ -2833,11 +2833,11 @@ button {
 }
 
 .quiz-option:hover:not(:disabled) {
-  border-color: #315bea;
+  border-color: #00003f;
 }
 
 .quiz-option > span {
-  color: #315bea;
+  color: #00003f;
   font-size: 0.8rem;
   font-weight: 850;
 }
@@ -2874,7 +2874,7 @@ button {
 .quiz-explanation {
   margin-top: 15px;
   padding: 15px 17px;
-  border-left: 2px solid #315bea;
+  border-left: 2px solid #00003f;
   background: #f1f4ff;
   color: #4e4e49;
 }
@@ -2921,7 +2921,7 @@ button {
 
 .quiz-answer-input:focus,
 .theory-answer-area:focus {
-  border-bottom-color: #315bea;
+  border-bottom-color: #00003f;
 }
 
 .quiz-controls {
@@ -2942,7 +2942,7 @@ button {
 }
 
 .quiz-previous-button:hover {
-  color: #315bea;
+  color: #00003f;
 }
 
 .quiz-previous-button:disabled {
@@ -2976,7 +2976,7 @@ button {
   padding: 0;
   border: 0;
   background: transparent;
-  color: #315bea;
+  color: #00003f;
   font-size: 0.72rem;
   font-weight: 800;
 }
@@ -3371,7 +3371,7 @@ button {
 
 .course-topic-item > span {
   padding-top: 2px;
-  color: #315bea;
+  color: #00003f;
   font-size: 0.72rem;
   font-weight: 850;
   letter-spacing: 0.08em;
@@ -3454,7 +3454,7 @@ button {
 
 .not-found-back-link:hover,
 .not-found-text-button:hover {
-  color: #315bea;
+  color: #00003f;
 }
 
 .not-found-main {
@@ -3537,7 +3537,7 @@ button {
 }
 
 .swift-sprint-topbar span {
-  color: #315bea;
+  color: #00003f;
 }
 
 .swift-sprint-sky {
@@ -4013,7 +4013,7 @@ button {
 }
 
 .cgpa-autocomplete-code {
-  color: #315bea;
+  color: #00003f;
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -4033,7 +4033,7 @@ button {
 }
 
 .quiz-setup-hint-theory-note {
-  color: #315bea;
+  color: #00003f;
 }
 
 .theory-paper-page {
@@ -4050,16 +4050,16 @@ button {
 .theory-shuffle-button,
 .theory-download-button {
   font-family: Georgia, "Times New Roman", serif;
-  border: 1px solid #315bea;
+  border: 1px solid #00003f;
   background: #ffffff;
-  color: #315bea;
+  color: #00003f;
   border-radius: 6px;
   padding: 6px 12px;
   cursor: pointer;
 }
 
 .theory-download-button {
-  background: #315bea;
+  background: #00003f;
   color: #ffffff;
 }
 
@@ -4076,7 +4076,7 @@ button {
   font-size: 1.5rem;
   background: none;
   border: none;
-  color: #315bea;
+  color: #00003f;
   cursor: pointer;
   padding: 12px;
 }
@@ -4115,7 +4115,7 @@ button {
 
 .theory-paper-brand {
   letter-spacing: 0.08em;
-  color: #315bea;
+  color: #00003f;
   font-weight: 700;
   margin: 0 0 4px;
 }
@@ -4153,7 +4153,7 @@ button {
   margin-top: 8px;
   padding: 10px 14px;
   background: #f0f4ff;
-  border-left: 3px solid #315bea;
+  border-left: 3px solid #00003f;
   border-radius: 4px;
 }
 
@@ -4235,5 +4235,30 @@ button {
 
   .theory-print-page:last-child {
     page-break-after: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .theory-flip-perspective {
+    width: 95vw;
+    height: 82vh;
+  }
+
+  .theory-paper-sheet {
+    padding: 18px 16px;
+  }
+
+  .theory-paper-meta {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .theory-question-part {
+    margin-bottom: 24px;
+  }
+
+  .theory-part-marks {
+    display: block;
+    margin-top: 2px;
   }
 }
