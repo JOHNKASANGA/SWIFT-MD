@@ -7,8 +7,7 @@ import re
 import time
 import hmac
 import hashlib
-import smtplib
-from email.mime.text import MIMEText
+import requests
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
@@ -389,22 +388,31 @@ def make_approve_token(submission_id: int) -> str:
 
 
 def send_admin_email(subject: str, html_body: str) -> None:
-    gmail_address = os.getenv("GMAIL_ADDRESS")
-    gmail_password = os.getenv("GMAIL_APP_PASSWORD")
-    notify_to = os.getenv("ADMIN_NOTIFY_EMAIL")
+    resend_api_key = os.getenv("RESEND_API_KEY")
+    admin_email = os.getenv("ADMIN_NOTIFY_EMAIL")
 
-    if not gmail_address or not gmail_password or not notify_to:
-        print("Email not sent: Gmail credentials or ADMIN_NOTIFY_EMAIL not configured.")
+    if not resend_api_key or not admin_email:
+        print("Email not sent: RESEND_API_KEY or ADMIN_NOTIFY_EMAIL not configured.")
         return
 
-    message = MIMEText(html_body, "html")
-    message["Subject"] = subject
-    message["From"] = gmail_address
-    message["To"] = notify_to
+    response = requests.post(
+        "https://api.resend.com/emails",
+        headers={
+            "Authorization": f"Bearer {resend_api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "from": "Swift <onboarding@resend.dev>",
+            "to": [admin_email],
+            "subject": subject,
+            "html": html_body,
+        },
+        timeout=10,
+    )
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(gmail_address, gmail_password)
-        server.sendmail(gmail_address, [notify_to], message.as_string())
+    if response.status_code >= 400:
+        print(f"Resend API error: {response.status_code} — {response.text}")
+        response.raise_for_status()
 
 
 def confirmation_page(message: str, success: bool = True) -> str:
