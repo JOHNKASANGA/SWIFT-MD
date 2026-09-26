@@ -8,6 +8,7 @@ export default function LevelPage() {
   const navigate = useNavigate();
   const [courses, setCourses] = useState([]);
   const [search, setSearch] = useState("");
+  const [department, setDepartment] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -36,12 +37,17 @@ export default function LevelPage() {
     navigate("/");
   }
 
+  const departments = [...new Set(
+    courses.map((course) => course.department).filter(Boolean)
+  )].sort();
+
   const filteredCourses = courses.filter((course) => {
     const query = search.toLowerCase().trim();
 
     return (
-      course.title.toLowerCase().includes(query) ||
-      course.code.toLowerCase().includes(query)
+      (!department || course.department === department) &&
+      (course.title.toLowerCase().includes(query) ||
+        course.code.toLowerCase().includes(query))
     );
   });
 
@@ -76,6 +82,21 @@ export default function LevelPage() {
             />
           </label>
 
+          {departments.length > 1 && (
+            <label className="course-department-filter">
+              <span className="sr-only">Filter by department</span>
+              <select
+                value={department}
+                onChange={(event) => setDepartment(event.target.value)}
+              >
+                <option value="">All departments</option>
+                {departments.map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+          )}
+
           <p className="course-count">
             {loading ? "Loading courses..." : `${filteredCourses.length} courses`}
           </p>
@@ -101,6 +122,7 @@ export default function LevelPage() {
                 <span className="course-library-code">{course.code}</span>
                 <span className="course-library-content">
                   <strong>{course.title}</strong>
+                  {course.department && <small>{course.department}</small>}
                   {course.description && <small>{course.description}</small>}
                 </span>
                 <span className="course-library-arrow" aria-hidden="true">

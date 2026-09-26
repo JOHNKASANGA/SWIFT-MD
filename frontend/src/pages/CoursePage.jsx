@@ -52,6 +52,18 @@ const MATERIAL_SECTIONS = [
   },
 ];
 
+const SUBMISSION_CATEGORIES = [
+  ["lecture_notes", "Lecture notes"],
+  ["slides", "Slides"],
+  ["past_questions", "Past questions"],
+  ["assignments", "Assignments"],
+  ["laboratory", "Laboratory work"],
+  ["practice", "Practice and tutorials"],
+  ["textbooks", "Textbook"],
+  ["references", "Reference or external course"],
+  ["other", "Other"],
+];
+
 function getMaterialSection(material) {
   const category = material.category || "uncategorized";
 
@@ -82,12 +94,132 @@ function MaterialRow({ material, index, onOpen }) {
 
       <span className="material-row-content">
         <span className="material-title">{material.title}</span>
+        {material.source_name && (
+          <small className="material-source">{material.source_name}</small>
+        )}
       </span>
 
       <span className="material-open">
         Open <span aria-hidden="true">↗</span>
       </span>
     </button>
+  );
+}
+
+function MaterialSuggestion({ courseCode }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({
+    title: "",
+    url: "",
+    category: "references",
+    note: "",
+  });
+  const [status, setStatus] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submitSuggestion(event) {
+    event.preventDefault();
+    setStatus("");
+
+    try {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData.user) {
+        throw new Error("Please sign in before suggesting a material.");
+      }
+
+      setSubmitting(true);
+      const { error } = await supabase.from("material_submissions").insert({
+        course_code: courseCode,
+        title: form.title.trim(),
+        url: form.url.trim(),
+        category: form.category,
+        note: form.note.trim() || null,
+        submitted_by: authData.user.id,
+      });
+
+      if (error) throw error;
+
+      setForm({ title: "", url: "", category: "references", note: "" });
+      setStatus("Thanks. Your suggestion is pending review before it appears on Swift.");
+    } catch (submissionError) {
+      setStatus(submissionError.message || "Your suggestion could not be submitted.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <section className="material-suggestion" aria-labelledby="material-suggestion-title">
+      <div>
+        <p className="swift-eyebrow">Help improve this course</p>
+        <h2 id="material-suggestion-title">Can’t find a useful material?</h2>
+        <p>
+          Suggest a public resource. Swift checks every submission before it is
+          added to the course collection.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        className="course-library-link"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+      >
+        {open ? "Close form" : "Suggest a material"} <span aria-hidden="true">→</span>
+      </button>
+
+      {open && (
+        <form className="material-suggestion-form" onSubmit={submitSuggestion}>
+          <label>
+            Material title
+            <input
+              required
+              value={form.title}
+              onChange={(event) => setForm({ ...form, title: event.target.value })}
+              placeholder="For example, NPTEL Fluid Mechanics"
+            />
+          </label>
+
+          <label>
+            Public link
+            <input
+              required
+              type="url"
+              value={form.url}
+              onChange={(event) => setForm({ ...form, url: event.target.value })}
+              placeholder="https://..."
+            />
+          </label>
+
+          <label>
+            Material type
+            <select
+              value={form.category}
+              onChange={(event) => setForm({ ...form, category: event.target.value })}
+            >
+              {SUBMISSION_CATEGORIES.map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Why is it useful? <span>Optional</span>
+            <textarea
+              value={form.note}
+              onChange={(event) => setForm({ ...form, note: event.target.value })}
+              rows={4}
+              placeholder="Which topics does it cover?"
+            />
+          </label>
+
+          {status && <p className="material-suggestion-status">{status}</p>}
+          <button type="submit" className="swift-primary-button" disabled={submitting}>
+            {submitting ? "Submitting..." : "Submit for review"}
+          </button>
+        </form>
+      )}
+    </section>
   );
 }
 
@@ -363,6 +495,8 @@ export default function CoursePage() {
             </div>
           )}
         </section>
+
+        <MaterialSuggestion courseCode={course.code} />
       </div>
     </AppShell>
   );

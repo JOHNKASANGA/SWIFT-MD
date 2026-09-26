@@ -882,6 +882,22 @@ button {
   color: #8b8b85;
 }
 
+.course-department-filter select {
+  min-height: 40px;
+  padding: 0 30px 0 11px;
+  border: 1px solid #c7c7c0;
+  border-radius: 8px;
+  outline: 0;
+  background: #ffffff;
+  color: #30302d;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.course-department-filter select:focus {
+  border-color: #315bea;
+}
+
 .course-count {
   margin: 0;
   color: #777771;
@@ -1064,6 +1080,21 @@ button {
   white-space: nowrap;
 }
 
+.material-row-content {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.material-source {
+  overflow: hidden;
+  color: #777771;
+  font-size: 0.74rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .material-open {
   color: #777771;
   font-size: 0.8rem;
@@ -1072,6 +1103,110 @@ button {
 
 .material-row:hover .material-open {
   color: #315bea;
+}
+
+.material-suggestion {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 20px 32px;
+  align-items: end;
+  margin-top: 56px;
+  padding: 28px 0;
+  border-top: 1px solid #dededa;
+  border-bottom: 1px solid #dededa;
+}
+
+.material-suggestion h2 {
+  margin: 0;
+  color: #171717;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.7rem, 3vw, 2.3rem);
+  font-weight: 500;
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+}
+
+.material-suggestion > div > p:last-child {
+  max-width: 580px;
+  margin: 11px 0 0;
+  color: #656560;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.material-suggestion-form {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 17px 22px;
+  padding-top: 7px;
+}
+
+.material-suggestion-form label {
+  display: grid;
+  gap: 8px;
+  color: #595954;
+  font-size: 0.73rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.material-suggestion-form label span {
+  color: #92928c;
+  font-weight: 700;
+}
+
+.material-suggestion-form input,
+.material-suggestion-form select,
+.material-suggestion-form textarea {
+  width: 100%;
+  border: 1px solid #c7c7c0;
+  border-radius: 8px;
+  outline: 0;
+  background: #ffffff;
+  color: #171717;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.material-suggestion-form input,
+.material-suggestion-form select {
+  min-height: 45px;
+  padding: 0 12px;
+}
+
+.material-suggestion-form textarea {
+  min-height: 106px;
+  padding: 11px 12px;
+  resize: vertical;
+}
+
+.material-suggestion-form input:focus,
+.material-suggestion-form select:focus,
+.material-suggestion-form textarea:focus {
+  border-color: #315bea;
+  box-shadow: 0 0 0 3px rgba(49, 91, 234, 0.1);
+}
+
+.material-suggestion-form label:nth-of-type(4) {
+  grid-column: 1 / -1;
+}
+
+.material-suggestion-status {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #4e4e49;
+  font-size: 0.86rem;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+.material-suggestion-form .swift-primary-button {
+  width: fit-content;
 }
 
 @media (max-width: 760px) {
@@ -1099,6 +1234,15 @@ button {
 
   .course-search {
     max-width: none;
+  }
+
+  .course-department-filter {
+    display: block;
+    margin-top: 13px;
+  }
+
+  .course-department-filter select {
+    width: 100%;
   }
 
   .course-count {
@@ -1156,6 +1300,29 @@ button {
 
   .material-title {
     white-space: normal;
+  }
+
+  .material-source {
+    white-space: normal;
+  }
+
+  .material-suggestion {
+    grid-template-columns: 1fr;
+    align-items: start;
+    margin-top: 44px;
+  }
+
+  .material-suggestion-form {
+    grid-template-columns: 1fr;
+  }
+
+  .material-suggestion-form label:nth-of-type(4) {
+    grid-column: auto;
+  }
+
+  .material-suggestion-form .swift-primary-button {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 

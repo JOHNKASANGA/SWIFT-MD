@@ -6,6 +6,7 @@ import secrets
 import re
 import time
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
 
 import httpx
 from typing import Optional
@@ -636,6 +637,15 @@ class MaterialReviewRequest(BaseModel):
     priority_reason: Optional[str] = Field(default=None, max_length=500)
 
 
+class MaterialSubmissionReviewRequest(BaseModel):
+    action: str
+    category: Optional[str] = None
+    title: Optional[str] = Field(default=None, max_length=300)
+    source_name: Optional[str] = Field(default=None, max_length=160)
+    material_summary: Optional[str] = Field(default=None, max_length=500)
+    review_note: Optional[str] = Field(default=None, max_length=500)
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.get("/")
@@ -1028,6 +1038,139 @@ def review_material(
         "material_sort_order": updated_material.get("material_sort_order"),
         "priority_reason": updated_material.get("priority_reason"),
         "status": "reviewed",
+    }
+
+
+@app.get("/admin/material-submissions")
+def list_material_submissions(
+    status: str = "pending",
+    x_admin_key: Optional[str] = Header(default=None),
+):
+    require_admin(x_admin_key)
+
+    if status not in {"pending", "approved", "rejected", "duplicate"}:
+        raise HTTPException(status_code=422, detail="Invalid submission status.")
+
+    result = (
+        supabase.table("material_submissions")
+        .select("*")
+        .eq("status", status)
+        .order("created_at", desc=False)
+        .execute()
+    )
+
+    return {"status": status, "submissions": result.data or []}
+
+
+@app.post("/admin/material-submissions/{submission_id}/review")
+def review_material_submission(
+    submission_id: int,
+    request: MaterialSubmissionReviewRequest,
+    x_admin_key: Optional[str] = Header(default=None),
+):
+    """Approve, reject, or mark a student material suggestion as duplicate."""
+    require_admin(x_admin_key)
+
+    action = safe_text(request.action).strip().lower()
+    if action not in {"approve", "reject", "duplicate"}:
+        raise HTTPException(
+            status_code=422,
+            detail="Action must be approve, reject, or duplicate.",
+        )
+
+    submission_result = (
+        supabase.table("material_submissions")
+        .select("*")
+        .eq("id", submission_id)
+        .maybe_single()
+        .execute()
+    )
+    submission = submission_result.data
+
+    if not submission:
+        raise HTTPException(status_code=404, detail="Material submission not found.")
+
+    if submission.get("status") != "pending":
+        raise HTTPException(status_code=409, detail="This submission has already been reviewed.")
+
+    review_note = safe_text(request.review_note).strip() or None
+    reviewed_at = datetime.now(timezone.utc).isoformat()
+
+    if action != "approve":
+        updated = (
+            supabase.table("material_submissions")
+            .update(
+                {
+                    "status": "rejected" if action == "reject" else "duplicate",
+                    "review_note": review_note,
+                    "reviewed_at": reviewed_at,
+                }
+            )
+            .eq("id", submission_id)
+            .execute()
+        )
+        return {"submission": (updated.data or [submission])[0], "material": None}
+
+    url = safe_text(submission.get("url")).strip()
+    parsed_url = urlparse(url)
+    if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+        raise HTTPException(status_code=422, detail="Submission must contain a valid public URL.")
+
+    category = safe_text(request.category or submission.get("category")).strip().lower()
+    if category not in MATERIAL_CATEGORIES:
+        raise HTTPException(status_code=422, detail="Invalid category.")
+
+    duplicate_result = (
+        supabase.table("materials")
+        .select("id, title")
+        .eq("file_url", url)
+        .maybe_single()
+        .execute()
+    )
+    if duplicate_result.data:
+        raise HTTPException(
+            status_code=409,
+            detail=f"This URL is already published as material {duplicate_result.data['id']}.",
+        )
+
+    material_title = safe_text(request.title or submission.get("title")).strip()
+    source_name = safe_text(request.source_name).strip() or parsed_url.netloc
+    material_summary = safe_text(request.material_summary).strip() or None
+
+    material_result = supabase.table("materials").insert(
+        {
+            "course_code": submission["course_code"],
+            "title": material_title,
+            "file_url": url,
+            "category": category,
+            "category_confidence": 100,
+            "category_source": "manual_review",
+            "category_evidence": review_note or "Approved student submission.",
+            "classification_status": "reviewed",
+            "classified_at": reviewed_at,
+            "source_name": source_name,
+            "material_summary": material_summary,
+            "resource_kind": "website",
+        }
+    ).execute()
+    material = (material_result.data or [None])[0]
+
+    updated_submission = (
+        supabase.table("material_submissions")
+        .update(
+            {
+                "status": "approved",
+                "review_note": review_note,
+                "reviewed_at": reviewed_at,
+            }
+        )
+        .eq("id", submission_id)
+        .execute()
+    )
+
+    return {
+        "submission": (updated_submission.data or [submission])[0],
+        "material": material,
     }
 
 
