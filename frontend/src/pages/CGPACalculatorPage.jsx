@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppShell from "../components/AppShell";
 import { supabase } from "../lib/supabase";
@@ -98,17 +98,99 @@ function ResultPanel({ title, cgpa, units, extra }) {
 }
 
 function CourseRow({ course, index, onChange, onRemove, canRemove }) {
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const debounceRef = useRef(null);
+  const skipNextFetchRef = useRef(false);
+
+  function handleNameChange(value) {
+    onChange("name", value);
+
+    if (skipNextFetchRef.current) {
+      skipNextFetchRef.current = false;
+      setShowSuggestions(false);
+      return;
+    }
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    const query = value.trim();
+
+    if (query.length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    debounceRef.current = setTimeout(async () => {
+      const { data, error } = await supabase
+        .from("course_outlines")
+        .select("course_code, official_title, units")
+        .ilike("course_code", `${query}%`)
+        .order("course_code")
+        .limit(6);
+
+      if (!error && data) {
+        setSuggestions(data);
+        setShowSuggestions(data.length > 0);
+      }
+    }, 250);
+  }
+
+  function selectSuggestion(suggestion) {
+    skipNextFetchRef.current = true;
+    onChange("name", suggestion.course_code);
+    onChange("units", String(suggestion.units));
+    setShowSuggestions(false);
+    setSuggestions([]);
+  }
+
   return (
     <div className="cgpa-course-row">
-      <span className="cgpa-course-index">{String(index + 1).padStart(2, "0")}</span>
+      <span className="cgpa-course-index">
+        {String(index + 1).padStart(2, "0")}
+      </span>
 
-      <input
-        type="text"
-        value={course.name}
-        onChange={(event) => onChange("name", event.target.value)}
-        placeholder="Course name or code"
-        aria-label={`Course ${index + 1} name`}
-      />
+      <div className="cgpa-course-autocomplete">
+        <input
+          type="text"
+          value={course.name}
+          onChange={(event) => handleNameChange(event.target.value)}
+          onFocus={() => {
+            if (suggestions.length > 0) setShowSuggestions(true);
+          }}
+          onBlur={() => {
+            setTimeout(() => setShowSuggestions(false), 150);
+          }}
+          placeholder="Course name or code"
+          aria-label={`Course ${index + 1} name`}
+          autoComplete="off"
+        />
+
+        {showSuggestions && (
+          <ul className="cgpa-autocomplete-dropdown">
+            {suggestions.map((suggestion) => (
+              <li key={suggestion.course_code}>
+                <button
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => selectSuggestion(suggestion)}
+                >
+                  <span className="cgpa-autocomplete-code">
+                    {suggestion.course_code}
+                  </span>
+                  <span className="cgpa-autocomplete-title">
+                    {suggestion.official_title}
+                  </span>
+                  <span className="cgpa-autocomplete-units">
+                    {suggestion.units}u
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       <input
         type="number"
@@ -164,7 +246,9 @@ export default function CGPACalculatorPage() {
   const [continueError, setContinueError] = useState("");
 
   const [semesters, setSemesters] = useState(
-    savedDraft?.semesters?.length ? savedDraft.semesters : [makeEmptySemester(0)]
+    savedDraft?.semesters?.length
+      ? savedDraft.semesters
+      : [makeEmptySemester(0)]
   );
 
   useEffect(() => {
@@ -220,7 +304,9 @@ export default function CGPACalculatorPage() {
     const enteredPreviousRecord = prevCGPA !== "" || prevUnits !== "";
 
     if (enteredPreviousRecord && (prevCGPA === "" || prevUnits === "")) {
-      setContinueError("Enter both your previous CGPA and total units, or leave both blank.");
+      setContinueError(
+        "Enter both your previous CGPA and total units, or leave both blank."
+      );
       return;
     }
 
@@ -238,7 +324,9 @@ export default function CGPACalculatorPage() {
         parsedCGPA > 5 ||
         parsedUnits < 0
       ) {
-        setContinueError("Use a CGPA between 0 and 5, with a valid previous total unit value.");
+        setContinueError(
+          "Use a CGPA between 0 and 5, with a valid previous total unit value."
+        );
         return;
       }
 
@@ -352,7 +440,8 @@ export default function CGPACalculatorPage() {
           className="swift-back-button"
           onClick={() => (mode ? setMode(null) : navigate("/home"))}
         >
-          <span aria-hidden="true">←</span> {mode ? "Calculator choices" : "Study space"}
+          <span aria-hidden="true">←</span>{" "}
+          {mode ? "Calculator choices" : "Study space"}
         </button>
 
         <section className="cgpa-intro">
@@ -470,7 +559,9 @@ export default function CGPACalculatorPage() {
                     placeholder="e.g. 90"
                   />
                 </label>
-                <small>Use the total unit value beside your current CGPA.</small>
+                <small>
+                  Use the total unit value beside your current CGPA.
+                </small>
               </div>
             </div>
 
@@ -565,7 +656,9 @@ export default function CGPACalculatorPage() {
                   <section key={semester.id} className="cgpa-semester-card">
                     <div className="cgpa-semester-card-header">
                       <div>
-                        <span>{String(semesterIndex + 1).padStart(2, "0")}</span>
+                        <span>
+                          {String(semesterIndex + 1).padStart(2, "0")}
+                        </span>
                         <input
                           type="text"
                           value={semester.label}
@@ -667,10 +760,7 @@ export default function CGPACalculatorPage() {
                 </button>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => setShowResetConfirm(true)}
-              >
+              <button type="button" onClick={() => setShowResetConfirm(true)}>
                 Clear saved calculator entries
               </button>
             )}

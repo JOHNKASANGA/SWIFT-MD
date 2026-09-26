@@ -3972,3 +3972,62 @@ button {
   font-size: 0.78rem;
   font-weight: 800;
 }
+
+.cgpa-course-autocomplete {
+  position: relative;
+}
+
+.cgpa-autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 4px 0 0;
+  padding: 4px;
+  list-style: none;
+  background: #ffffff;
+  border: 1px solid #d8dee9;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(23, 23, 23, 0.12);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.cgpa-autocomplete-dropdown li button {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: none;
+  text-align: left;
+  font-family: Georgia, "Times New Roman", serif;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.cgpa-autocomplete-dropdown li button:hover {
+  background: #f0f4ff;
+}
+
+.cgpa-autocomplete-code {
+  color: #315bea;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.cgpa-autocomplete-title {
+  color: #171717;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cgpa-autocomplete-units {
+  color: #6b7280;
+  font-size: 0.85em;
+  flex-shrink: 0;
+}
