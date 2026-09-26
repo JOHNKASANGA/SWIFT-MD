@@ -128,6 +128,12 @@ export default function TestPage() {
             </p>
           </section>
 
+          <p className="quiz-setup-hint quiz-setup-hint-theory-note">
+            Theory practice always uses its own full set of questions and does
+            not use the question count or timer above — it has its own pacing
+            built in.
+          </p>
+
           <section className="quiz-mode-grid">
             <button
               type="button"
@@ -195,7 +201,13 @@ export default function TestPage() {
     );
   }
 
-  return <TheoryQuiz courseCode={courseCode} onExit={() => setMode(null)} />;
+  return (
+    <TheoryQuiz
+      courseCode={courseCode}
+      attemptMode={attemptMode}
+      onExit={() => setMode(null)}
+    />
+  );
 }
 
 function QuizSetupHeader({ courseCode, onExit, onSignOut }) {
@@ -258,7 +270,8 @@ function QuizTimer({ minutes, onExpire }) {
 
   return (
     <span className={isLow ? "quiz-timer is-low" : "quiz-timer"}>
-      {String(minutesLeft).padStart(2, "0")}:{String(secondsLeft).padStart(2, "0")}
+      {String(minutesLeft).padStart(2, "0")}:
+      {String(secondsLeft).padStart(2, "0")}
     </span>
   );
 }
@@ -306,15 +319,28 @@ function QuestionNavigator({
       </div>
 
       <div className="question-key">
-        <span><i className="is-current" /> Current</span>
-        <span><i className="is-answered" /> Answered</span>
-        <span><i className="is-flagged" /> Flagged</span>
+        <span>
+          <i className="is-current" /> Current
+        </span>
+        <span>
+          <i className="is-answered" /> Answered
+        </span>
+        <span>
+          <i className="is-flagged" /> Flagged
+        </span>
       </div>
     </section>
   );
 }
 
-function QuizFocusHeader({ courseCode, current, total, timerMinutes, onExit, onExpire }) {
+function QuizFocusHeader({
+  courseCode,
+  current,
+  total,
+  timerMinutes,
+  onExit,
+  onExpire,
+}) {
   return (
     <header className="quiz-focus-header">
       <button type="button" className="swift-brand" onClick={onExit}>
@@ -361,15 +387,18 @@ function MCQQuiz({
 
     async function fetchQuestions() {
       try {
-        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/quiz`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            course_code: courseCode,
-            num_questions: numQuestions,
-            question_type: "mcq",
-          }),
-        });
+        const response = await fetch(
+          `${import.meta.env.VITE_BACKEND_URL}/quiz`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              course_code: courseCode,
+              num_questions: numQuestions,
+              question_type: "mcq",
+            }),
+          }
+        );
 
         const data = await response.json();
 
@@ -402,10 +431,7 @@ function MCQQuiz({
   }, [cachedQuestions, courseCode, numQuestions, onCache]);
 
   function selectAnswer(option) {
-    if (
-      attemptMode === "practice" &&
-      selectedAnswers[current] !== undefined
-    ) {
+    if (attemptMode === "practice" && selectedAnswers[current] !== undefined) {
       return;
     }
 
@@ -444,7 +470,9 @@ function MCQQuiz({
         onExit={onExit}
         timedOut={timedOut}
         attemptMode={attemptMode}
-        flaggedCount={Object.keys(flagged).filter((index) => flagged[index]).length}
+        flaggedCount={
+          Object.keys(flagged).filter((index) => flagged[index]).length
+        }
       />
     );
   }
@@ -466,9 +494,13 @@ function MCQQuiz({
       <main className="quiz-main">
         <section className="quiz-question-panel">
           <p className="quiz-question-label">
-            {attemptMode === "test" ? "Multiple-choice test" : "Multiple-choice practice"}
+            {attemptMode === "test"
+              ? "Multiple-choice test"
+              : "Multiple-choice practice"}
           </p>
-          <h1><MathText text={question.question} /></h1>
+          <h1>
+            <MathText text={question.question} />
+          </h1>
 
           <div className="quiz-options">
             {Object.entries(question.options).map(([key, value]) => {
@@ -504,11 +536,17 @@ function MCQQuiz({
           {attemptMode === "practice" &&
             selected !== undefined &&
             question.explanation && (
-            <div className="quiz-explanation">
-              <b>{selected === question.correct_answer ? "Correct." : "Review this."}</b>
-              <p><MathText text={question.explanation} /></p>
-            </div>
-          )}
+              <div className="quiz-explanation">
+                <b>
+                  {selected === question.correct_answer
+                    ? "Correct."
+                    : "Review this."}
+                </b>
+                <p>
+                  <MathText text={question.explanation} />
+                </p>
+              </div>
+            )}
 
           <div className="quiz-controls">
             <button
@@ -563,8 +601,7 @@ function matchesGermanAnswer(question, input) {
   if (!input?.trim()) return false;
 
   return [question.correct_answer, ...(question.acceptable_answers || [])].some(
-    (answer) =>
-      answer.toLowerCase().trim() === input.toLowerCase().trim()
+    (answer) => answer.toLowerCase().trim() === input.toLowerCase().trim()
   );
 }
 
@@ -593,15 +630,18 @@ function GermanQuiz({
 
     async function fetchQuestions() {
       try {
-        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/quiz`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            course_code: courseCode,
-            num_questions: numQuestions,
-            question_type: "german",
-          }),
-        });
+        const response = await fetch(
+          `${import.meta.env.VITE_BACKEND_URL}/quiz`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              course_code: courseCode,
+              num_questions: numQuestions,
+              question_type: "german",
+            }),
+          }
+        );
 
         const data = await response.json();
 
@@ -610,7 +650,9 @@ function GermanQuiz({
         }
 
         if (!data.questions?.length) {
-          throw new Error("This course does not have fill-in-the-blank questions yet.");
+          throw new Error(
+            "This course does not have fill-in-the-blank questions yet."
+          );
         }
 
         if (!cancelled) {
@@ -690,10 +732,9 @@ function GermanQuiz({
         question: question.question,
         input: answer?.input,
         correct: question.correct_answer,
-        isCorrect:
-          answer?.checked
-            ? answer.isCorrect
-            : matchesGermanAnswer(question, answer?.input),
+        isCorrect: answer?.checked
+          ? answer.isCorrect
+          : matchesGermanAnswer(question, answer?.input),
       };
     });
 
@@ -703,7 +744,9 @@ function GermanQuiz({
         onExit={onExit}
         timedOut={timedOut}
         attemptMode={attemptMode}
-        flaggedCount={Object.keys(flagged).filter((index) => flagged[index]).length}
+        flaggedCount={
+          Object.keys(flagged).filter((index) => flagged[index]).length
+        }
       />
     );
   }
@@ -724,16 +767,24 @@ function GermanQuiz({
       <main className="quiz-main">
         <section className="quiz-question-panel">
           <p className="quiz-question-label">
-            {attemptMode === "test" ? "Recall test" : "Fill-in-the-blank practice"}
+            {attemptMode === "test"
+              ? "Recall test"
+              : "Fill-in-the-blank practice"}
           </p>
-          <h1><MathText text={question.question} /></h1>
+          <h1>
+            <MathText text={question.question} />
+          </h1>
 
           {attemptMode === "practice" && question.hint && (
-            <p className="quiz-hint">Hint: <MathText text={question.hint} /></p>
+            <p className="quiz-hint">
+              Hint: <MathText text={question.hint} />
+            </p>
           )}
 
           {!response.checked && (
-            <MathToolbar onInsert={(symbol) => updateInput(response.input + symbol)} />
+            <MathToolbar
+              onInsert={(symbol) => updateInput(response.input + symbol)}
+            />
           )}
 
           <input
@@ -762,7 +813,11 @@ function GermanQuiz({
                   </>
                 )}
               </b>
-              {question.explanation && <p><MathText text={question.explanation} /></p>}
+              {question.explanation && (
+                <p>
+                  <MathText text={question.explanation} />
+                </p>
+              )}
             </div>
           )}
 
@@ -824,16 +879,61 @@ function GermanQuiz({
   );
 }
 
-function TheoryQuiz({ courseCode, onExit }) {
-  const [questions, setQuestions] = useState([]);
-  const [current, setCurrent] = useState(0);
-  const [answer, setAnswer] = useState("");
-  const [result, setResult] = useState(null);
-  const [allResults, setAllResults] = useState([]);
+function shuffleArray(items) {
+  const array = [...items];
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+const LETTERS = ["a", "b", "c", "d", "e", "f"];
+
+function buildPaper(rawQuestions) {
+  const shuffled = shuffleArray(rawQuestions);
+  const targetQuestionCount = randomInt(4, 6);
+
+  const groups = [];
+  let cursor = 0;
+
+  for (let i = 0; i < targetQuestionCount; i++) {
+    const remaining = shuffled.length - cursor;
+    if (remaining <= 0) break;
+
+    const subCount = Math.min(randomInt(2, 4), remaining);
+    const parts = shuffled.slice(cursor, cursor + subCount).map((q, index) => ({
+      letter: LETTERS[index],
+      question: q.question,
+      max_marks: q.max_marks,
+      answer: q.answer,
+    }));
+
+    cursor += subCount;
+
+    groups.push({
+      questionNumber: i + 1,
+      totalMarks: parts.reduce((sum, part) => sum + (part.max_marks || 0), 0),
+      parts,
+    });
+
+    if (cursor >= shuffled.length) break;
+  }
+
+  return groups;
+}
+
+function TheoryQuiz({ courseCode, attemptMode, onExit }) {
+  const [rawQuestions, setRawQuestions] = useState([]);
+  const [paper, setPaper] = useState([]);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [flipDirection, setFlipDirection] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [grading, setGrading] = useState(false);
   const [error, setError] = useState("");
-  const [done, setDone] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -845,17 +945,26 @@ function TheoryQuiz({ courseCode, onExit }) {
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ course_code: courseCode, num_questions: 5 }),
+            body: JSON.stringify({
+              course_code: courseCode,
+              num_questions: 100,
+            }),
           }
         );
 
         const data = await response.json();
 
-        if (!response.ok) throw new Error(data.detail || "Theory could not load.");
+        if (!response.ok)
+          throw new Error(data.detail || "Theory paper could not load.");
 
-        if (!cancelled) setQuestions(data.questions || []);
+        if (!cancelled) {
+          const questions = data.questions || [];
+          setRawQuestions(questions);
+          setPaper(buildPaper(questions));
+        }
       } catch (fetchError) {
-        if (!cancelled) setError(fetchError.message || "Theory could not load.");
+        if (!cancelled)
+          setError(fetchError.message || "Theory paper could not load.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -868,152 +977,224 @@ function TheoryQuiz({ courseCode, onExit }) {
     };
   }, [courseCode]);
 
-  async function submitAnswer() {
-    if (!answer.trim()) return;
-
-    setGrading(true);
-    setError("");
-
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_BACKEND_URL}/grade-theory`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            course_code: courseCode,
-            question: questions[current]?.question || "",
-            answer,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) throw new Error(data.detail || "Answer could not be graded.");
-
-      setResult(data.grading);
-      setAllResults((results) => [
-        ...results,
-        { question: questions[current]?.question, grading: data.grading },
-      ]);
-    } catch (gradingError) {
-      setError(gradingError.message || "Answer could not be graded.");
-    } finally {
-      setGrading(false);
-    }
+  function reshuffle() {
+    setPaper(buildPaper(rawQuestions));
+    setCurrentPage(0);
   }
 
-  function nextQuestion() {
-    if (current + 1 >= questions.length) {
-      setDone(true);
-      return;
-    }
-
-    setCurrent((index) => index + 1);
-    setAnswer("");
-    setResult(null);
+  function goToPage(nextIndex, direction) {
+    if (nextIndex < 0 || nextIndex >= paper.length || flipDirection) return;
+    setFlipDirection(direction);
   }
 
-  if (loading) return <LoadingScreen label="Loading theory questions..." />;
-  if (error && !questions.length) return <QuizError message={error} onExit={onExit} />;
-
-  if (done) {
-    const average =
-      allResults.length > 0
-        ? allResults.reduce((sum, item) => sum + item.grading.score, 0) /
-          allResults.length
-        : 0;
-
-    return (
-      <div className="quiz-results-page">
-        <button type="button" className="swift-back-button" onClick={onExit}>
-          ← Back to quiz setup
-        </button>
-        <p className="swift-eyebrow">Theory complete</p>
-        <h1>{average.toFixed(1)}<span>/10 average</span></h1>
-        <div className="quiz-review-list">
-          {allResults.map((item, index) => (
-            <article key={index} className="quiz-review-row">
-              <p><MathText text={item.question} /></p>
-              <strong>
-                {item.grading.score}/{item.grading.max_score} · {item.grading.grade}
-              </strong>
-            </article>
-          ))}
-        </div>
-      </div>
-    );
+  function onFlipComplete(nextIndex) {
+    setCurrentPage(nextIndex);
+    setFlipDirection(null);
   }
 
-  const question = questions[current];
+  if (loading) return <LoadingScreen label="Preparing your theory paper..." />;
+  if (error && !paper.length)
+    return <QuizError message={error} onExit={onExit} />;
 
   return (
-    <div className="quiz-page">
-      <QuizFocusHeader
-        courseCode={courseCode}
-        current={current}
-        total={questions.length}
-        timerMinutes={0}
-        onExit={onExit}
-        onExpire={() => {}}
-      />
+    <div className="quiz-page theory-paper-page">
+      <header className="quiz-focus-header">
+        <button type="button" className="swift-brand" onClick={onExit}>
+          <span className="swift-brand-mark">S</span>
+          <span>Swift</span>
+        </button>
+        <p>{courseCode} · Theory paper</p>
+        <div className="theory-paper-actions">
+          <button
+            type="button"
+            className="theory-shuffle-button"
+            onClick={reshuffle}
+          >
+            Shuffle again
+          </button>
+          <button
+            type="button"
+            className="theory-download-button"
+            onClick={() => window.print()}
+          >
+            Download PDF
+          </button>
+        </div>
+      </header>
 
-      <main className="theory-main">
-        <section className="quiz-question-panel">
-          <p className="quiz-question-label">
-            Theory · {question?.difficulty || "Practice"}
-          </p>
-          <h1><MathText text={question?.question} /></h1>
+      <main className="theory-screen-only theory-flip-stage">
+        <button
+          type="button"
+          className="theory-flip-arrow theory-flip-arrow-prev"
+          onClick={() => goToPage(currentPage - 1, "prev")}
+          disabled={currentPage === 0 || !!flipDirection}
+          aria-label="Previous question"
+        >
+          ←
+        </button>
 
-          {question?.key_points?.length > 0 && (
-            <div className="theory-key-points">
-              <b>Points to cover</b>
-              {question.key_points.map((point) => (
-                <span key={point}><MathText text={point} /></span>
-              ))}
-            </div>
+        <div className="theory-flip-perspective">
+          <PaperSheet
+            group={paper[currentPage]}
+            courseCode={courseCode}
+            attemptMode={attemptMode}
+            isFirstPage={currentPage === 0}
+          />
+
+          {flipDirection && (
+            <FlippingSheet
+              outgoingGroup={paper[currentPage]}
+              incomingGroup={
+                paper[
+                  flipDirection === "next" ? currentPage + 1 : currentPage - 1
+                ]
+              }
+              courseCode={courseCode}
+              attemptMode={attemptMode}
+              direction={flipDirection}
+              isFirstPage={currentPage === 0}
+              onComplete={() =>
+                onFlipComplete(
+                  flipDirection === "next" ? currentPage + 1 : currentPage - 1
+                )
+              }
+            />
           )}
+        </div>
 
-          {result ? (
-            <div className="theory-feedback">
-              <p>
-                <strong>{result.score}/{result.max_score}</strong> · {result.grade}
-              </p>
-              {result.feedback?.suggestion && (
-                <span><MathText text={result.feedback.suggestion} /></span>
-              )}
-              <button type="button" className="swift-primary-button" onClick={nextQuestion}>
-                {current + 1 >= questions.length ? "See results" : "Next question"} →
-              </button>
-            </div>
-          ) : (
-            <>
-              <MathToolbar onInsert={(symbol) => setAnswer((text) => text + symbol)} />
-              <textarea
-                value={answer}
-                onChange={(event) => setAnswer(event.target.value)}
-                placeholder="Write your answer here"
-                rows={10}
-                className="theory-answer-area"
-              />
-              {error && <p className="cgpa-error">{error}</p>}
-              <button
-                type="button"
-                className="swift-primary-button"
-                disabled={grading || !answer.trim()}
-                onClick={submitAnswer}
-              >
-                {grading ? "Grading..." : "Submit answer"}
-              </button>
-            </>
-          )}
-        </section>
+        <button
+          type="button"
+          className="theory-flip-arrow theory-flip-arrow-next"
+          onClick={() => goToPage(currentPage + 1, "next")}
+          disabled={currentPage >= paper.length - 1 || !!flipDirection}
+          aria-label="Next question"
+        >
+          →
+        </button>
       </main>
+
+      <p className="theory-screen-only theory-page-indicator">
+        Question {currentPage + 1} of {paper.length}
+      </p>
+
+      <div className="theory-print-only theory-print-sheet">
+        {paper.map((group, index) => (
+          <PrintedQuestion
+            key={group.questionNumber}
+            group={group}
+            courseCode={courseCode}
+            attemptMode={attemptMode}
+            isFirstPage={index === 0}
+            isLastPage={index === paper.length - 1}
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
+function PaperHeader({ courseCode, isFirstPage }) {
+  if (!isFirstPage) return null;
+
+  return (
+    <div className="theory-paper-header">
+      <p className="theory-paper-brand">SWIFT PRACTICE PAPER</p>
+      <h2>{courseCode}</h2>
+      <div className="theory-paper-meta">
+        <span>Duration: 2 Hours</span>
+        <span>Answer ALL Questions</span>
+      </div>
+    </div>
+  );
+}
+
+function QuestionBody({ group, attemptMode }) {
+  if (!group) return null;
+
+  return (
+    <div className="theory-question-block">
+      <p className="theory-question-title">
+        QUESTION {group.questionNumber} ({group.totalMarks} Marks)
+      </p>
+
+      {group.parts.map((part) => (
+        <div key={part.letter} className="theory-question-part">
+          <p className="theory-question-part-text">
+            <span className="theory-part-letter">({part.letter})</span>{" "}
+            <MathText text={part.question} />{" "}
+            <span className="theory-part-marks">({part.max_marks} marks)</span>
+          </p>
+
+          {attemptMode === "practice" && part.answer && (
+            <div className="theory-answer-block">
+              <b>Answer</b>
+              <MathText text={part.answer} />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PaperSheet({ group, courseCode, attemptMode, isFirstPage }) {
+  return (
+    <div className="theory-paper-sheet">
+      <PaperHeader courseCode={courseCode} isFirstPage={isFirstPage} />
+      <QuestionBody group={group} attemptMode={attemptMode} />
+    </div>
+  );
+}
+
+function FlippingSheet({
+  outgoingGroup,
+  incomingGroup,
+  courseCode,
+  attemptMode,
+  direction,
+  isFirstPage,
+  onComplete,
+}) {
+  return (
+    <div
+      className={`theory-flipping-sheet theory-flip-${direction}`}
+      onAnimationEnd={onComplete}
+    >
+      <div className="theory-flip-face theory-flip-front">
+        <PaperSheet
+          group={outgoingGroup}
+          courseCode={courseCode}
+          attemptMode={attemptMode}
+          isFirstPage={isFirstPage}
+        />
+      </div>
+      <div className="theory-flip-face theory-flip-back">
+        <PaperSheet
+          group={incomingGroup}
+          courseCode={courseCode}
+          attemptMode={attemptMode}
+          isFirstPage={false}
+        />
+      </div>
+    </div>
+  );
+}
+
+function PrintedQuestion({
+  group,
+  courseCode,
+  attemptMode,
+  isFirstPage,
+  isLastPage,
+}) {
+  return (
+    <div className="theory-print-page">
+      <PaperHeader courseCode={courseCode} isFirstPage={isFirstPage} />
+      <QuestionBody group={group} attemptMode={attemptMode} />
+      {!isLastPage && <p className="theory-turn-over">PLEASE TURN OVER</p>}
+    </div>
+  );
+}
 function ResultsScreen({
   answers,
   onExit,
@@ -1039,11 +1220,12 @@ function ResultsScreen({
         {timedOut
           ? "Time expired"
           : attemptMode === "test"
-            ? "Test complete"
-            : "Practice complete"}
+          ? "Test complete"
+          : "Practice complete"}
       </p>
       <h1>
-        {score}<span>/{answers.length}</span>
+        {score}
+        <span>/{answers.length}</span>
       </h1>
       <p className="quiz-results-summary">{percentage}% correct</p>
 
@@ -1065,10 +1247,14 @@ function ResultsScreen({
                 : "quiz-review-row is-wrong"
             }
           >
-            <p><MathText text={answer.question} /></p>
+            <p>
+              <MathText text={answer.question} />
+            </p>
             <small>
               Your answer:{" "}
-              <MathText text={answer.selected || answer.input || "Not answered"} />
+              <MathText
+                text={answer.selected || answer.input || "Not answered"}
+              />
             </small>
             {!answer.isCorrect && (
               <b>

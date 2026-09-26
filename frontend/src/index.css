@@ -4031,3 +4031,209 @@ button {
   font-size: 0.85em;
   flex-shrink: 0;
 }
+
+.quiz-setup-hint-theory-note {
+  color: #315bea;
+}
+
+.theory-paper-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.theory-paper-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.theory-shuffle-button,
+.theory-download-button {
+  font-family: Georgia, "Times New Roman", serif;
+  border: 1px solid #315bea;
+  background: #ffffff;
+  color: #315bea;
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.theory-download-button {
+  background: #315bea;
+  color: #ffffff;
+}
+
+.theory-flip-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  width: 100%;
+  padding: 24px 0;
+}
+
+.theory-flip-arrow {
+  font-size: 1.5rem;
+  background: none;
+  border: none;
+  color: #315bea;
+  cursor: pointer;
+  padding: 12px;
+}
+
+.theory-flip-arrow:disabled {
+  color: #c7cedc;
+  cursor: default;
+}
+
+.theory-flip-perspective {
+  position: relative;
+  width: min(700px, 90vw);
+  height: min(820px, 80vh);
+  perspective: 2000px;
+}
+
+.theory-paper-sheet {
+  position: absolute;
+  inset: 0;
+  background: #ffffff;
+  border: 1px solid #e2e6ef;
+  border-radius: 4px;
+  box-shadow: 0 12px 32px rgba(23, 23, 23, 0.14);
+  padding: 32px 40px;
+  overflow-y: auto;
+  font-family: Georgia, "Times New Roman", serif;
+  color: #171717;
+}
+
+.theory-paper-header {
+  text-align: center;
+  border-bottom: 2px solid #171717;
+  padding-bottom: 12px;
+  margin-bottom: 20px;
+}
+
+.theory-paper-brand {
+  letter-spacing: 0.08em;
+  color: #315bea;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+.theory-paper-header h2 {
+  margin: 0 0 8px;
+}
+
+.theory-paper-meta {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  font-style: italic;
+}
+
+.theory-question-title {
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.theory-question-part {
+  margin-bottom: 18px;
+}
+
+.theory-part-letter {
+  font-weight: 700;
+}
+
+.theory-part-marks {
+  font-style: italic;
+  color: #4b5563;
+}
+
+.theory-answer-block {
+  margin-top: 8px;
+  padding: 10px 14px;
+  background: #f0f4ff;
+  border-left: 3px solid #315bea;
+  border-radius: 4px;
+}
+
+.theory-flipping-sheet {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+
+.theory-flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+}
+
+.theory-flip-back {
+  transform: rotateY(180deg);
+}
+
+.theory-flip-next {
+  transform-origin: left center;
+  animation: flip-next-turn 0.6s ease forwards;
+}
+
+.theory-flip-prev {
+  transform-origin: right center;
+  animation: flip-prev-turn 0.6s ease forwards;
+}
+
+@keyframes flip-next-turn {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(-180deg);
+  }
+}
+
+@keyframes flip-prev-turn {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(180deg);
+  }
+}
+
+.theory-page-indicator {
+  font-family: Georgia, "Times New Roman", serif;
+  color: #4b5563;
+}
+
+.theory-print-only {
+  display: none;
+}
+
+.theory-turn-over {
+  text-align: center;
+  font-weight: 700;
+  margin-top: 24px;
+}
+
+@media print {
+  .theory-screen-only,
+  .quiz-focus-header {
+    display: none !important;
+  }
+
+  .theory-print-only {
+    display: block !important;
+  }
+
+  .theory-print-page {
+    font-family: Georgia, "Times New Roman", serif;
+    color: #171717;
+    padding: 24px;
+    page-break-after: always;
+  }
+
+  .theory-print-page:last-child {
+    page-break-after: auto;
+  }
+}
