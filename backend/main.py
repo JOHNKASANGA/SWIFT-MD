@@ -125,6 +125,37 @@ def groq_generate_vision(
     return response.json()["choices"][0]["message"]["content"]
 
 
+def gemini_generate_json(prompt: str, max_tokens: int = 2200) -> str:
+    """Generate structured JSON with Gemini for student-facing study tools."""
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY is not configured.")
+
+    response = httpx.post(
+        f"{GEMINI_URL}/{GEMINI_MODEL}:generateContent",
+        headers={
+            "x-goog-api-key": GEMINI_API_KEY,
+            "Content-Type": "application/json",
+        },
+        json={
+            "contents": [
+                {"role": "user", "parts": [{"text": safe_text(prompt)}]}
+            ],
+            "generationConfig": {
+                "temperature": 0.2,
+                "maxOutputTokens": max_tokens,
+                "responseMimeType": "application/json",
+            },
+        },
+        timeout=60.0,
+    )
+    response.raise_for_status()
+
+    try:
+        return response.json()["candidates"][0]["content"]["parts"][0]["text"]
+    except (KeyError, IndexError, TypeError) as error:
+        raise RuntimeError("Gemini returned an unusable response.") from error
+
+
 CLASSIFICATION_JSON_SCHEMA = {
     "type": "object",
     "properties": {
@@ -156,6 +187,23 @@ class TransientClassificationError(RuntimeError):
 def safe_text(value: object) -> str:
     """Remove invalid Unicode surrogates before JSON, HTTP, or Supabase work."""
     return str(value or "").encode("utf-8", "replace").decode("utf-8")
+
+
+def require_user(authorization: Optional[str]) -> str:
+    """Verify a Swift Supabase session and return the signed-in user id."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Sign in to use AI study checks.")
+
+    token = authorization.removeprefix("Bearer ").strip()
+    try:
+        response = supabase.auth.get_user(token)
+        user = response.user
+    except Exception as error:
+        raise HTTPException(status_code=401, detail="Your session has expired. Sign in again.") from error
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Your session has expired. Sign in again.")
+    return str(user.id)
 
 
 def retry_delay_seconds(response: Optional[httpx.Response], attempt: int) -> int:
@@ -780,6 +828,118 @@ Course material extract:
         return []
 
 
+def generate_study_check_questions(
+    source_text: str,
+    question_type: str,
+    num_questions: int,
+    course_code: str,
+    material_title: str,
+    focus: str,
+) -> tuple[list, str]:
+    """Generate a small source-grounded study check with a named provider."""
+    if question_type not in {"mcq", "german"}:
+        raise HTTPException(
+            status_code=422,
+            detail="question_type must be mcq or german.",
+        )
+
+    if question_type == "mcq":
+        format_instructions = """
+Return this JSON shape:
+{
+  "questions": [
+    {
+      "question": "Question text",
+      "options": {"A": "...", "B": "...", "C": "...", "D": "..."},
+      "correct_answer": "A",
+      "explanation": "A concise explanation supported by the source"
+    }
+  ]
+}
+Each question must have exactly four options and exactly one correct answer.
+"""
+    else:
+        format_instructions = """
+Return this JSON shape:
+{
+  "questions": [
+    {
+      "question": "A statement with exactly one _____ blank",
+      "correct_answer": "answer",
+      "acceptable_answers": ["answer"],
+      "hint": "A short hint",
+      "explanation": "A concise explanation supported by the source"
+    }
+  ]
+}
+Each question must have one specific answer found in the source.
+"""
+
+    focus_instruction = (
+        f"Prioritise the student's requested focus: {focus}."
+        if focus
+        else "Cover the most useful concepts in the supplied extract."
+    )
+    prompt = f"""Create exactly {num_questions} university-level study-check questions for {course_code}.
+
+Material: {material_title}
+{focus_instruction}
+
+Grounding rules:
+- Use ONLY the supplied material extract.
+- Do not invent facts or rely on outside knowledge.
+- Do not ask about authors, publishers, page numbers, or document metadata.
+- Test understanding, application, definitions, formulas, or calculations where supported.
+- If the requested focus is not supported by the extract, return {{"questions": []}}.
+- Return JSON only.
+
+{format_instructions}
+
+Material extract:
+{source_text}
+"""
+
+    providers = (
+        ("Gemini", lambda: gemini_generate_json(prompt)),
+        ("Groq fallback", lambda: groq_generate(prompt, max_tokens=2200, temperature=0.2)),
+    )
+
+    for provider, generate in providers:
+        try:
+            data = parse_json(generate())
+            questions = data.get("questions", [])
+            if not isinstance(questions, list):
+                continue
+
+            valid_questions = []
+            for question in questions:
+                if not isinstance(question, dict):
+                    continue
+                if not safe_text(question.get("question")).strip():
+                    continue
+                if not safe_text(question.get("correct_answer")).strip():
+                    continue
+                if not safe_text(question.get("explanation")).strip():
+                    continue
+                if question_type == "mcq":
+                    options = question.get("options")
+                    if not isinstance(options, dict) or set(options) != {"A", "B", "C", "D"}:
+                        continue
+                    if question.get("correct_answer") not in options:
+                        continue
+                valid_questions.append(question)
+
+            if len(valid_questions) >= num_questions:
+                return valid_questions[:num_questions], provider
+        except Exception:
+            continue
+
+    raise HTTPException(
+        status_code=503,
+        detail="Swift could not build a grounded study check right now. Please try again.",
+    )
+
+
 # ── Models ────────────────────────────────────────────────────────────────────
 
 class GreetingRequest(BaseModel):
@@ -809,6 +969,13 @@ class CourseQuizRequest(BaseModel):
     num_questions: int = 10
     section: Optional[str] = None
     question_type: str = "mcq"
+
+
+class MaterialStudyCheckRequest(BaseModel):
+    material_id: int
+    question_type: str = "mcq"
+    num_questions: int = Field(default=5, ge=3, le=5)
+    focus: Optional[str] = Field(default=None, max_length=120)
 
 
 class MaterialClassificationBatchRequest(BaseModel):
@@ -1449,6 +1616,79 @@ def get_quiz(request: CourseQuizRequest):
         status_code=404,
         detail=f"No {request.question_type} question bank exists yet for {request.course_code}. Live generation has been disabled to avoid low-quality questions."
     )
+
+
+@app.post("/ai/material-study-check")
+def create_material_study_check(
+    request: MaterialStudyCheckRequest,
+    authorization: Optional[str] = Header(default=None),
+):
+    require_user(authorization)
+    material_result = (
+        supabase.table("materials")
+        .select("id, title, course_code, file_url, extracted_text")
+        .eq("id", request.material_id)
+        .maybe_single()
+        .execute()
+    )
+    material = material_result.data
+    if not material:
+        raise HTTPException(status_code=404, detail="Material not found.")
+
+    text = get_material_text(material)
+    if len(text.strip()) < 300:
+        raise HTTPException(
+            status_code=422,
+            detail="This material does not contain enough extractable text for an AI study check.",
+        )
+
+    chunks = [
+        chunk for chunk in chunk_text(text, chunk_size=4200, overlap=250)
+        if len(chunk.strip()) >= 300
+    ]
+    focus = safe_text(request.focus).strip()
+    if focus:
+        focus_terms = {
+            term.lower() for term in re.findall(r"[A-Za-z0-9]+", focus)
+            if len(term) > 2
+        }
+        ranked = sorted(
+            chunks,
+            key=lambda chunk: sum(
+                chunk.lower().count(term) for term in focus_terms
+            ),
+            reverse=True,
+        )
+        if not ranked or not any(term in ranked[0].lower() for term in focus_terms):
+            raise HTTPException(
+                status_code=422,
+                detail="That focus was not found in this material. Try a term used in the document.",
+            )
+        selected_chunks = ranked[:2]
+    else:
+        selected_chunks = chunks[:2]
+
+    questions, provider = generate_study_check_questions(
+        source_text="\n\n".join(selected_chunks)[:8000],
+        question_type=request.question_type,
+        num_questions=request.num_questions,
+        course_code=safe_text(material.get("course_code")),
+        material_title=safe_text(material.get("title")),
+        focus=focus,
+    )
+
+    return {
+        "material": {
+            "id": material["id"],
+            "title": safe_text(material.get("title")),
+            "course_code": safe_text(material.get("course_code")),
+        },
+        "question_type": request.question_type,
+        "focus": focus or None,
+        "questions": questions,
+        "provider": provider,
+        "grounding": "Generated only from the selected Swift material.",
+    }
 
 
 @app.post("/generate-theory-question")

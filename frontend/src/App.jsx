@@ -13,6 +13,7 @@ import ViewerPage from "./pages/ViewerPage";
 import CGPACalculatorPage from "./pages/CGPACalculatorPage";
 import PracticePage from "./pages/PracticePage";
 import NotFoundPage from "./pages/NotFoundPage";
+import MaterialStudyCheckPage from "./pages/MaterialStudyCheckPage";
 
 export default function App() {
   useEffect(() => {
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/view/:materialId" element={<ViewerPage />} />
+        <Route path="/study-check/:materialId" element={<MaterialStudyCheckPage />} />
         <Route path="/cgpa" element={<CGPACalculatorPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
