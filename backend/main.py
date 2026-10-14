@@ -940,6 +940,68 @@ Material extract:
     )
 
 
+def normalise_question_text(question: dict) -> str:
+    return re.sub(r"\s+", " ", safe_text(question.get("question")).lower()).strip()
+
+
+def validate_material_questions(questions: list, source_text: str, question_type: str) -> tuple[list, str]:
+    """Independently reject questions that cannot be supported by the source."""
+    if not questions:
+        return [], "Not run"
+    prompt = f"""You are a strict university question-bank reviewer. Review the candidate
+{question_type} questions against the supplied course-material extract. Accept a question only
+when its answer is supported by the extract, it tests course content rather than document
+metadata, it is unambiguous, and it is not materially duplicated.
+
+Return JSON only: {{"accepted_indices": [0, 2]}}
+
+Candidate questions (numbered from 0):
+{json.dumps(questions, ensure_ascii=False)}
+
+Course-material extract:
+{source_text[:12000]}"""
+    for provider, generate in (
+        ("Gemini", lambda: gemini_generate_json(prompt, max_tokens=1200)),
+        ("Groq fallback", lambda: groq_generate(prompt, max_tokens=1200, temperature=0)),
+    ):
+        try:
+            indices = parse_json(generate()).get("accepted_indices", [])
+            return ([questions[i] for i in indices if isinstance(i, int) and 0 <= i < len(questions)], provider)
+        except Exception:
+            continue
+    return [], "Validation unavailable"
+
+
+def generate_material_bank_batch(material: dict, question_type: str, count: int, existing_questions: list) -> tuple[list, str, str]:
+    """Generate one small, validated batch toward one material's 100-question bank."""
+    text = get_material_text(material)
+    if len(text.strip()) < 300:
+        raise HTTPException(status_code=422, detail="This material does not contain enough extractable text to build a question bank.")
+    chunks = [chunk for chunk in chunk_text(text, chunk_size=4200, overlap=250) if len(chunk.strip()) >= 300]
+    if not chunks:
+        raise HTTPException(status_code=422, detail="Swift could not split this material into usable study sections.")
+    source_chunk = chunks[len(existing_questions) % len(chunks)]
+    candidates, generation_provider = generate_study_check_questions(
+        source_text=source_chunk,
+        question_type=question_type,
+        num_questions=count,
+        course_code=safe_text(material.get("course_code")),
+        material_title=safe_text(material.get("title")),
+        focus="",
+    )
+    accepted, validation_provider = validate_material_questions(candidates, source_chunk, question_type)
+    known = {normalise_question_text(question) for question in existing_questions}
+    unique = []
+    for question in accepted:
+        key = normalise_question_text(question)
+        if key and key not in known:
+            question["material_id"] = material["id"]
+            question["material_title"] = safe_text(material.get("title"))
+            unique.append(question)
+            known.add(key)
+    return unique, generation_provider, validation_provider
+
+
 # ── Models ────────────────────────────────────────────────────────────────────
 
 class GreetingRequest(BaseModel):
@@ -976,6 +1038,13 @@ class MaterialStudyCheckRequest(BaseModel):
     question_type: str = "mcq"
     num_questions: int = Field(default=5, ge=3, le=5)
     focus: Optional[str] = Field(default=None, max_length=120)
+
+
+class MaterialQuestionBankGenerationRequest(BaseModel):
+    material_id: int
+    question_type: str = "mcq"
+    target_count: int = Field(default=100, ge=1, le=500)
+    batch_size: int = Field(default=5, ge=3, le=5)
 
 
 class MaterialClassificationBatchRequest(BaseModel):
@@ -1533,6 +1602,14 @@ def generate_question_bank(
     x_admin_key: Optional[str] = Header(default=None),
 ):
     require_admin(x_admin_key)
+    # This route used to overwrite curated banks with generated output. Those
+    # banks are protected now; generation happens per material instead.
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy course-bank generation is retired. Use per-material banks; curated banks are protected.",
+    )
+
+    # Historical implementation kept below temporarily; unreachable by design.
     result = supabase.table("materials").select("*").eq("course_code", request.course_code).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="No materials found for this course")
@@ -1607,6 +1684,32 @@ def get_quiz(request: CourseQuizRequest):
             "bank_size": len(all_questions)
         }
 
+    # Only courses without a curated bank for this category draw from generated
+    # material banks. A 50-question TCH 202 quiz can therefore sample from all
+    # approved questions across its seven materials without touching an
+    # existing bank.
+    generated_result = (
+        supabase.table("material_question_banks")
+        .select("material_id, questions")
+        .eq("course_code", request.course_code)
+        .eq("question_type", request.question_type)
+        .eq("status", "approved")
+        .execute()
+    )
+    generated_questions = []
+    for bank in generated_result.data or []:
+        generated_questions.extend(bank.get("questions") or [])
+    if generated_questions:
+        return {
+            "course_code": request.course_code,
+            "question_type": request.question_type,
+            "questions": random.sample(generated_questions, min(request.num_questions, len(generated_questions))),
+            "from_bank": True,
+            "bank_kind": "generated_material_pool",
+            "bank_size": len(generated_questions),
+            "materials_in_pool": len(generated_result.data or []),
+        }
+
     # Live generation fallback removed — it was pulling from unfiltered
     # raw text (including textbook prefaces/front-matter) and producing
     # low-quality, irrelevant questions. /quiz now only serves from a
@@ -1616,6 +1719,74 @@ def get_quiz(request: CourseQuizRequest):
         status_code=404,
         detail=f"No {request.question_type} question bank exists yet for {request.course_code}. Live generation has been disabled to avoid low-quality questions."
     )
+
+
+@app.post("/admin/material-question-banks/generate")
+def generate_material_question_bank(
+    request: MaterialQuestionBankGenerationRequest,
+    x_admin_key: Optional[str] = Header(default=None),
+):
+    """Generate and validate one small batch toward a material's permanent bank."""
+    require_admin(x_admin_key)
+    if request.question_type not in {"mcq", "german"}:
+        raise HTTPException(status_code=422, detail="Question banks currently support mcq or german.")
+
+    material_result = (
+        supabase.table("materials")
+        .select("id, title, course_code, file_url, extracted_text")
+        .eq("id", request.material_id)
+        .maybe_single()
+        .execute()
+    )
+    material = material_result.data
+    if not material:
+        raise HTTPException(status_code=404, detail="Material not found.")
+
+    existing_result = (
+        supabase.table("material_question_banks").select("*")
+        .eq("material_id", request.material_id)
+        .eq("question_type", request.question_type)
+        .maybe_single()
+        .execute()
+    )
+    bank = existing_result.data
+    existing_questions = (bank or {}).get("questions") or []
+    target_count = (bank or {}).get("target_count", request.target_count)
+    if len(existing_questions) >= target_count:
+        return {"material_id": material["id"], "question_count": len(existing_questions), "target_count": target_count, "status": bank.get("status"), "complete": True}
+
+    generated, generation_provider, validation_provider = generate_material_bank_batch(
+        material,
+        request.question_type,
+        min(request.batch_size, target_count - len(existing_questions)),
+        existing_questions,
+    )
+    combined = existing_questions + generated
+    complete = len(combined) >= target_count
+    payload = {
+        "material_id": material["id"],
+        "course_code": material["course_code"],
+        "question_type": request.question_type,
+        "questions": combined,
+        "target_count": target_count,
+        "status": "approved" if complete else "generating",
+        "generation_provider": generation_provider,
+        "validation_provider": validation_provider,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "last_error": None,
+    }
+    if bank:
+        supabase.table("material_question_banks").update(payload).eq("id", bank["id"]).execute()
+    else:
+        supabase.table("material_question_banks").insert(payload).execute()
+
+    return {
+        "material_id": material["id"], "material_title": material["title"],
+        "course_code": material["course_code"], "question_type": request.question_type,
+        "generated_this_batch": len(generated), "question_count": len(combined),
+        "target_count": target_count, "remaining": max(target_count - len(combined), 0),
+        "status": "approved" if complete else "generating", "complete": complete,
+    }
 
 
 @app.post("/ai/material-study-check")
@@ -1634,6 +1805,31 @@ def create_material_study_check(
     material = material_result.data
     if not material:
         raise HTTPException(status_code=404, detail="Material not found.")
+
+    # A complete material bank serves five freshly shuffled, previously
+    # validated questions. Focused checks still use the live material reader.
+    permanent_bank = (
+        supabase.table("material_question_banks").select("questions")
+        .eq("material_id", request.material_id)
+        .eq("question_type", request.question_type)
+        .eq("status", "approved")
+        .maybe_single()
+        .execute()
+    )
+    permanent_questions = (permanent_bank.data or {}).get("questions") or []
+    if permanent_questions and not safe_text(request.focus).strip():
+        return {
+            "material": {
+                "id": material["id"],
+                "title": safe_text(material.get("title")),
+                "course_code": safe_text(material.get("course_code")),
+            },
+            "question_type": request.question_type,
+            "focus": None,
+            "questions": random.sample(permanent_questions, min(request.num_questions, len(permanent_questions))),
+            "provider": "Swift vetted material bank",
+            "grounding": "Shuffled from the approved question bank for this selected material.",
+        }
 
     text = get_material_text(material)
     if len(text.strip()) < 300:
