@@ -972,7 +972,120 @@ Course-material extract:
     return [], "Validation unavailable"
 
 
-def generate_material_bank_batch(material: dict, question_type: str, count: int, existing_questions: list) -> tuple[list, str, str]:
+def outline_topic_names(outline: dict) -> list[str]:
+    """Normalise the existing outline JSON into topic names suitable for matching."""
+    topics = []
+    for item in outline.get("ordered_topics") or []:
+        if isinstance(item, str) and item.strip():
+            topics.append(item.strip())
+        elif isinstance(item, dict):
+            value = item.get("topic") or item.get("title") or item.get("name")
+            if value and safe_text(value).strip():
+                topics.append(safe_text(value).strip())
+    return topics
+
+
+def map_material_chunk_to_course(
+    course_code: str,
+    topics: list[str],
+    chunk: str,
+    chunk_index: int,
+) -> tuple[dict, str]:
+    """Decide whether one source section belongs to the supplied course outline."""
+    prompt = f"""You are mapping a textbook or study material to a university course.
+
+Course: {course_code}
+Official course topics: {json.dumps(topics, ensure_ascii=False)}
+
+Read ONLY the source section below. Return JSON with this exact shape:
+{{
+  "relevant": true,
+  "unit_title": "short source-grounded unit title",
+  "matched_topics": ["exact topic names from the official course topics"],
+  "evidence": "short phrase or concise factual description from the source section",
+  "importance": 1,
+  "reason": "why this section is or is not needed for this course"
+}}
+
+Rules:
+- relevant is true only if this section teaches one or more official course topics.
+- Do not match on a vague shared word alone.
+- matched_topics must use only exact names from the official course topics list.
+- importance is an integer from 1 to 5 when relevant, otherwise 0.
+- Never use document metadata, author names, publishers, or page numbers as a unit.
+- Return JSON only.
+
+Source section {chunk_index}:
+{chunk[:12000]}"""
+
+    for provider, generate in (
+        ("Gemini", lambda: gemini_generate_json(prompt, max_tokens=900)),
+        ("Groq fallback", lambda: groq_generate(prompt, max_tokens=900, temperature=0)),
+    ):
+        try:
+            data = parse_json(generate())
+            relevant = bool(data.get("relevant"))
+            matched = [
+                safe_text(topic).strip()
+                for topic in (data.get("matched_topics") or [])
+                if safe_text(topic).strip() in topics
+            ]
+            if relevant and not matched:
+                relevant = False
+            try:
+                importance = int(data.get("importance", 0))
+            except (TypeError, ValueError):
+                importance = 0
+            return {
+                "chunk_index": chunk_index,
+                "unit_title": safe_text(data.get("unit_title") or f"Source section {chunk_index + 1}")[:180],
+                "matched_topics": matched,
+                "evidence": safe_text(data.get("evidence"))[:700],
+                "reason": safe_text(data.get("reason"))[:700],
+                "importance": max(1, min(5, importance)) if relevant else 0,
+                "relevant": relevant,
+            }, provider
+        except Exception:
+            continue
+    raise HTTPException(status_code=503, detail="Swift could not map this source section right now. Please retry later.")
+
+
+def build_coverage_plan(relevant_units: list, target_count: int) -> list:
+    """Allocate a finite question target across approved, source-mapped units."""
+    if not relevant_units:
+        return []
+    weights = [max(1, int(unit.get("importance", 1))) for unit in relevant_units]
+    total_weight = sum(weights)
+    quotas = [max(1, round(target_count * weight / total_weight)) for weight in weights]
+
+    while sum(quotas) > target_count:
+        index = max(range(len(quotas)), key=lambda i: (quotas[i], weights[i]))
+        if quotas[index] == 1:
+            break
+        quotas[index] -= 1
+    while sum(quotas) < target_count:
+        index = max(range(len(quotas)), key=lambda i: weights[i] / quotas[i])
+        quotas[index] += 1
+
+    return [
+        {
+            "chunk_index": unit["chunk_index"],
+            "unit_title": unit["unit_title"],
+            "matched_topics": unit["matched_topics"],
+            "question_quota": quota,
+            "importance": unit["importance"],
+        }
+        for unit, quota in zip(relevant_units, quotas)
+    ]
+
+
+def generate_material_bank_batch(
+    material: dict,
+    question_type: str,
+    count: int,
+    existing_questions: list,
+    coverage_plan: list,
+) -> tuple[list, str, str]:
     """Generate one small, validated batch toward one material's 100-question bank."""
     text = get_material_text(material)
     if len(text.strip()) < 300:
@@ -980,7 +1093,29 @@ def generate_material_bank_batch(material: dict, question_type: str, count: int,
     chunks = [chunk for chunk in chunk_text(text, chunk_size=4200, overlap=250) if len(chunk.strip()) >= 300]
     if not chunks:
         raise HTTPException(status_code=422, detail="Swift could not split this material into usable study sections.")
-    source_chunk = chunks[len(existing_questions) % len(chunks)]
+    generated_by_chunk = {}
+    for question in existing_questions:
+        chunk_index = question.get("source_chunk_index") if isinstance(question, dict) else None
+        if isinstance(chunk_index, int):
+            generated_by_chunk[chunk_index] = generated_by_chunk.get(chunk_index, 0) + 1
+
+    selected_unit = next(
+        (
+            unit for unit in coverage_plan
+            if isinstance(unit, dict)
+            and isinstance(unit.get("chunk_index"), int)
+            and 0 <= unit["chunk_index"] < len(chunks)
+            and generated_by_chunk.get(unit["chunk_index"], 0) < int(unit.get("question_quota", 0))
+        ),
+        None,
+    )
+    if not selected_unit:
+        raise HTTPException(status_code=422, detail="The approved coverage plan is complete or unusable. Rebuild the material map before generating more questions.")
+    source_chunk = chunks[selected_unit["chunk_index"]]
+    remaining_for_unit = int(selected_unit.get("question_quota", 0)) - generated_by_chunk.get(selected_unit["chunk_index"], 0)
+    count = min(count, remaining_for_unit)
+    if count < 1:
+        raise HTTPException(status_code=422, detail="The selected source unit has already met its question quota.")
     candidates, generation_provider = generate_study_check_questions(
         source_text=source_chunk,
         question_type=question_type,
@@ -997,6 +1132,9 @@ def generate_material_bank_batch(material: dict, question_type: str, count: int,
         if key and key not in known:
             question["material_id"] = material["id"]
             question["material_title"] = safe_text(material.get("title"))
+            question["source_chunk_index"] = selected_unit["chunk_index"]
+            question["source_unit_title"] = safe_text(selected_unit.get("unit_title"))
+            question["source_topics"] = selected_unit.get("matched_topics") or []
             unique.append(question)
             known.add(key)
     return unique, generation_provider, validation_provider
@@ -1045,6 +1183,20 @@ class MaterialQuestionBankGenerationRequest(BaseModel):
     question_type: str = "mcq"
     target_count: int = Field(default=100, ge=1, le=500)
     batch_size: int = Field(default=5, ge=3, le=5)
+
+
+class CourseMaterialMapRequest(BaseModel):
+    course_code: str
+    material_id: int
+    chunks_per_run: int = Field(default=1, ge=1, le=3)
+    target_question_count: int = Field(default=100, ge=1, le=500)
+
+
+class CourseMaterialMapQueueRequest(BaseModel):
+    course_code: str
+    max_materials: int = Field(default=1, ge=1, le=3)
+    chunks_per_material: int = Field(default=1, ge=1, le=3)
+    target_question_count: int = Field(default=100, ge=1, le=500)
 
 
 class MaterialClassificationBatchRequest(BaseModel):
@@ -1721,6 +1873,160 @@ def get_quiz(request: CourseQuizRequest):
     )
 
 
+@app.post("/admin/course-material-maps/build")
+def build_course_material_map(
+    request: CourseMaterialMapRequest,
+    x_admin_key: Optional[str] = Header(default=None),
+):
+    """Map a few source sections to one course before any bank can be generated."""
+    require_admin(x_admin_key)
+    course_code = safe_text(request.course_code).strip().upper()
+    outline_result = (
+        supabase.table("course_outlines").select("course_code, ordered_topics")
+        .eq("course_code", course_code).maybe_single().execute()
+    )
+    outline = outline_result.data
+    if not outline:
+        raise HTTPException(status_code=422, detail=f"{course_code} needs a verified course outline before Swift can map textbook units.")
+    topics = outline_topic_names(outline)
+    if not topics:
+        raise HTTPException(status_code=422, detail=f"{course_code} has no usable ordered topics yet.")
+
+    material_result = (
+        supabase.table("materials")
+        .select("id, title, course_code, file_url, extracted_text")
+        .eq("id", request.material_id).maybe_single().execute()
+    )
+    material = material_result.data
+    if not material:
+        raise HTTPException(status_code=404, detail="Material not found.")
+    if safe_text(material.get("course_code")).strip().upper() != course_code:
+        raise HTTPException(status_code=422, detail="This material is not assigned to the requested course.")
+
+    text = get_material_text(material)
+    if len(text.strip()) < 300:
+        raise HTTPException(status_code=422, detail="This material needs readable extracted text before Swift can map it to the course.")
+    chunks = [chunk for chunk in chunk_text(text, chunk_size=4200, overlap=250) if len(chunk.strip()) >= 300]
+    if not chunks:
+        raise HTTPException(status_code=422, detail="Swift could not split this material into usable source sections.")
+
+    existing_result = (
+        supabase.table("course_material_maps").select("*")
+        .eq("course_code", course_code).eq("material_id", material["id"])
+        .maybe_single().execute()
+    )
+    current = existing_result.data or {}
+    relevant_units = current.get("relevant_units") or []
+    ignored_units = current.get("ignored_units") or []
+    processed = {
+        unit.get("chunk_index") for unit in (relevant_units + ignored_units)
+        if isinstance(unit, dict) and isinstance(unit.get("chunk_index"), int)
+    }
+    pending_indices = [index for index in range(len(chunks)) if index not in processed]
+    providers = []
+
+    for index in pending_indices[:request.chunks_per_run]:
+        unit, provider = map_material_chunk_to_course(course_code, topics, chunks[index], index)
+        providers.append(provider)
+        if unit["relevant"]:
+            relevant_units.append(unit)
+        else:
+            ignored_units.append(unit)
+
+    processed_count = len(relevant_units) + len(ignored_units)
+    complete = processed_count >= len(chunks)
+    coverage_plan = build_coverage_plan(relevant_units, request.target_question_count) if complete else []
+    status = "approved" if complete and coverage_plan else ("review" if complete else "mapping")
+    payload = {
+        "course_code": course_code,
+        "material_id": material["id"],
+        "status": status,
+        "source_text_length": len(text),
+        "total_chunks": len(chunks),
+        "processed_chunks": processed_count,
+        "relevant_units": relevant_units,
+        "ignored_units": ignored_units,
+        "coverage_plan": coverage_plan,
+        "target_question_count": request.target_question_count,
+        "mapping_provider": providers[-1] if providers else current.get("mapping_provider"),
+        "last_error": None,
+        "mapped_at": datetime.now(timezone.utc).isoformat() if complete else None,
+        "approved_at": datetime.now(timezone.utc).isoformat() if status == "approved" else None,
+    }
+    if current:
+        supabase.table("course_material_maps").update(payload).eq("id", current["id"]).execute()
+    else:
+        supabase.table("course_material_maps").insert(payload).execute()
+
+    return {
+        "course_code": course_code,
+        "material_id": material["id"],
+        "material_title": material["title"],
+        "status": status,
+        "processed_chunks": processed_count,
+        "total_chunks": len(chunks),
+        "relevant_units": len(relevant_units),
+        "remaining_chunks": max(len(chunks) - processed_count, 0),
+        "coverage_plan": coverage_plan if complete else [],
+        "complete": complete,
+    }
+
+
+@app.post("/admin/course-material-maps/run-queue")
+def run_course_material_map_queue(
+    request: CourseMaterialMapQueueRequest,
+    x_admin_key: Optional[str] = Header(default=None),
+):
+    """Advance the next incomplete materials in a course without hand-picking files."""
+    require_admin(x_admin_key)
+    course_code = safe_text(request.course_code).strip().upper()
+    materials_result = (
+        supabase.table("materials").select("id, material_sort_order")
+        .eq("course_code", course_code).order("material_sort_order").execute()
+    )
+    materials = materials_result.data or []
+    if not materials:
+        raise HTTPException(status_code=404, detail=f"No materials were found for {course_code}.")
+    material_ids = [material["id"] for material in materials]
+    maps_result = (
+        supabase.table("course_material_maps").select("material_id, status")
+        .eq("course_code", course_code).in_("material_id", material_ids).execute()
+    )
+    status_by_material = {
+        row["material_id"]: row.get("status") for row in (maps_result.data or [])
+    }
+    pending = [
+        material for material in materials
+        if status_by_material.get(material["id"]) not in {"approved", "review"}
+    ]
+    if not pending:
+        return {
+            "course_code": course_code,
+            "message": "Every material is already mapped or flagged for review.",
+            "processed": [],
+            "complete": True,
+        }
+
+    processed = []
+    for material in pending[:request.max_materials]:
+        result = build_course_material_map(
+            CourseMaterialMapRequest(
+                course_code=course_code,
+                material_id=material["id"],
+                chunks_per_run=request.chunks_per_material,
+                target_question_count=request.target_question_count,
+            ),
+            x_admin_key=x_admin_key,
+        )
+        processed.append(result)
+    return {
+        "course_code": course_code,
+        "processed": processed,
+        "remaining_materials": max(len(pending) - len(processed), 0),
+        "complete": len(pending) <= len(processed) and all(item["complete"] for item in processed),
+    }
+
+
 @app.post("/admin/material-question-banks/generate")
 def generate_material_question_bank(
     request: MaterialQuestionBankGenerationRequest,
@@ -1742,6 +2048,31 @@ def generate_material_question_bank(
     if not material:
         raise HTTPException(status_code=404, detail="Material not found.")
 
+    curated_result = (
+        supabase.table("question_banks").select("id")
+        .eq("course_code", material["course_code"])
+        .eq("question_type", request.question_type)
+        .limit(1).execute()
+    )
+    if curated_result.data:
+        raise HTTPException(
+            status_code=409,
+            detail=f"{material['course_code']} already has a curated {request.question_type} bank. Swift will not add generated questions to that category.",
+        )
+
+    course_map_result = (
+        supabase.table("course_material_maps").select("status, coverage_plan")
+        .eq("course_code", material["course_code"])
+        .eq("material_id", material["id"])
+        .maybe_single().execute()
+    )
+    course_map = course_map_result.data
+    if not course_map or course_map.get("status") != "approved" or not course_map.get("coverage_plan"):
+        raise HTTPException(
+            status_code=422,
+            detail="Swift must finish the course-to-material map and coverage plan before it can generate this permanent question bank.",
+        )
+
     existing_result = (
         supabase.table("material_question_banks").select("*")
         .eq("material_id", request.material_id)
@@ -1760,6 +2091,7 @@ def generate_material_question_bank(
         request.question_type,
         min(request.batch_size, target_count - len(existing_questions)),
         existing_questions,
+        course_map["coverage_plan"],
     )
     combined = existing_questions + generated
     complete = len(combined) >= target_count
