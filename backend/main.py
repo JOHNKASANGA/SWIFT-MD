@@ -1199,6 +1199,43 @@ class CourseMaterialMapQueueRequest(BaseModel):
     target_question_count: int = Field(default=100, ge=1, le=500)
 
 
+# Mapping should start with documents that teach the course.  A database order
+# is not meaningful when older imported materials have no explicit sort order,
+# and can otherwise select a one-page assignment before a full textbook.
+MAPPING_CATEGORY_ORDER = {
+    "textbooks": 0,
+    "lecture_notes": 1,
+    "slides": 2,
+    "laboratory": 3,
+    "references": 4,
+    "practice": 5,
+    "past_questions": 6,
+    "assignments": 7,
+    "other": 8,
+    "uncategorized": 9,
+}
+
+MATERIAL_PRIORITY_ORDER = {
+    "high": 0,
+    "medium": 1,
+    "low": 2,
+}
+
+
+def course_mapping_queue_sort_key(material: dict) -> tuple[int, int, int, int]:
+    """Put substantial teaching sources ahead of exercises and small tasks."""
+    category = safe_text(material.get("category")).strip().lower()
+    priority = safe_text(material.get("material_priority")).strip().lower()
+    sort_order = material.get("material_sort_order")
+
+    return (
+        MAPPING_CATEGORY_ORDER.get(category, 9),
+        MATERIAL_PRIORITY_ORDER.get(priority, 3),
+        sort_order if isinstance(sort_order, int) else 1_000_000,
+        int(material.get("id", 0)),
+    )
+
+
 class MaterialClassificationBatchRequest(BaseModel):
     limit: int = Field(default=3, ge=1, le=5)
     retry_failed: bool = False
@@ -1981,10 +2018,15 @@ def run_course_material_map_queue(
     require_admin(x_admin_key)
     course_code = safe_text(request.course_code).strip().upper()
     materials_result = (
-        supabase.table("materials").select("id, material_sort_order")
-        .eq("course_code", course_code).order("material_sort_order").execute()
+        supabase.table("materials")
+        .select("id, title, category, material_priority, material_sort_order")
+        .eq("course_code", course_code)
+        .execute()
     )
-    materials = materials_result.data or []
+    materials = sorted(
+        materials_result.data or [],
+        key=course_mapping_queue_sort_key,
+    )
     if not materials:
         raise HTTPException(status_code=404, detail=f"No materials were found for {course_code}.")
     material_ids = [material["id"] for material in materials]
