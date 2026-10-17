@@ -1093,6 +1093,10 @@ button {
   margin-top: 38px;
 }
 
+.course-intro {
+  max-width: 920px;
+}
+
 .level-intro h1,
 .course-intro h1 {
   margin: 0;
@@ -1102,6 +1106,16 @@ button {
   font-weight: 500;
   letter-spacing: -0.055em;
   line-height: 1;
+}
+
+.course-title {
+  text-wrap: balance;
+}
+
+.course-title--long {
+  max-width: 900px;
+  font-size: clamp(2.8rem, 4.5vw, 4.9rem) !important;
+  line-height: 1.02 !important;
 }
 
 .level-intro > p:last-child,
@@ -1508,10 +1522,19 @@ button {
     margin-top: 30px;
   }
 
+  .course-intro {
+    max-width: 100%;
+  }
+
   .level-intro h1,
   .course-intro h1 {
     font-size: clamp(2.9rem, 14vw, 4.25rem);
     line-height: 0.99;
+  }
+
+  .course-title--long {
+    font-size: clamp(2.5rem, 11vw, 3.7rem) !important;
+    line-height: 1 !important;
   }
 
   .level-intro > p:last-child,

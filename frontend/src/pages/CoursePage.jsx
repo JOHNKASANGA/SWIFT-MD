@@ -484,7 +484,15 @@ export default function CoursePage() {
           <p className="swift-eyebrow">
             {course.level} Level · {course.code}
           </p>
-          <h1>{course.title}</h1>
+          <h1
+            className={
+              course.title.trim().length > 52
+                ? "course-title course-title--long"
+                : "course-title"
+            }
+          >
+            {course.title}
+          </h1>
           {course.description && <p>{course.description}</p>}
         </section>
 
