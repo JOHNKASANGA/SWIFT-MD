@@ -1952,7 +1952,9 @@ def build_course_material_map(
         .eq("course_code", course_code).eq("material_id", material["id"])
         .maybe_single().execute()
     )
-    current = existing_result.data or {}
+    # PostgREST may return None rather than an empty response when no mapping
+    # exists yet. That is the normal first-run path, not an application error.
+    current = getattr(existing_result, "data", None) or {}
     relevant_units = current.get("relevant_units") or []
     ignored_units = current.get("ignored_units") or []
     processed = {
