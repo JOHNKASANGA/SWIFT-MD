@@ -170,6 +170,98 @@ def extract_text_from_pdf(
         return ""
 
 
+def extract_document_batch_from_url(
+    file_url: str,
+    start_page: int = 0,
+    page_count: int = 12,
+    max_chars: int = 70000,
+) -> dict:
+    """Extract one bounded, resumable section of a public study document.
+
+    A full textbook must never keep a web request open while hundreds of
+    pages are decoded.  PDF pages are therefore processed by index.  Empty
+    PDF pages are reported separately so the caller can route them to OCR.
+    """
+    try:
+        file_bytes, direct_url = download_file(file_url)
+    except Exception as error:
+        return {
+            "text": "",
+            "file_type": "unknown",
+            "total_pages": 0,
+            "start_page": start_page,
+            "next_page": start_page,
+            "complete": False,
+            "scanned_pages": [],
+            "error": safe_error_message(error),
+        }
+
+    file_type = detect_document_type(file_bytes, file_url, direct_url)
+
+    if file_type != "pdf":
+        extractors = {
+            "docx": extract_text_from_docx,
+            "pptx": extract_text_from_pptx,
+        }
+        extractor = extractors.get(file_type)
+        text = extractor(file_bytes, max_chars=max_chars) if extractor else ""
+        return {
+            "text": text,
+            "file_type": file_type,
+            "total_pages": 1,
+            "start_page": 0,
+            "next_page": 1,
+            "complete": True,
+            "scanned_pages": [],
+            "error": None if text.strip() else f"Unsupported or unreadable {file_type} document.",
+        }
+
+    try:
+        reader = PdfReader(io.BytesIO(file_bytes))
+        total_pages = len(reader.pages)
+        start_page = max(0, min(start_page, total_pages))
+        end_page = min(total_pages, start_page + max(1, page_count))
+        parts = []
+        scanned_pages = []
+
+        for page_number in range(start_page, end_page):
+            page_text = reader.pages[page_number].extract_text() or ""
+            page_text = page_text.strip()
+            if page_text:
+                parts.append(f"[Page {page_number + 1}]\n{page_text}")
+            else:
+                scanned_pages.append(page_number)
+
+            if sum(len(part) for part in parts) >= max_chars:
+                break
+
+        return {
+            "text": "\n\n".join(parts)[:max_chars],
+            "file_type": "pdf",
+            "total_pages": total_pages,
+            "start_page": start_page,
+            "next_page": end_page,
+            "complete": end_page >= total_pages,
+            "scanned_pages": scanned_pages,
+            "error": None,
+        }
+    except Exception as error:
+        return {
+            "text": "",
+            "file_type": "pdf",
+            "total_pages": 0,
+            "start_page": start_page,
+            "next_page": start_page,
+            "complete": False,
+            "scanned_pages": [],
+            "error": safe_error_message(error),
+        }
+
+
+def safe_error_message(error: Exception) -> str:
+    return str(error).strip()[:500] or error.__class__.__name__
+
+
 def extract_text_from_docx(
     file_bytes: bytes,
     max_chars: Optional[int] = None,
