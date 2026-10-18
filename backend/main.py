@@ -22,8 +22,8 @@ from dotenv import load_dotenv
 from supabase import create_client
 from pdf_utils import (
     chunk_text,
+    extract_document_batch_from_url,
     extract_material_sample_from_url,
-    extract_text_from_url,
 )
 
 load_dotenv()
@@ -722,18 +722,9 @@ Respond only as JSON with keys: category, confidence, evidence."""
 
 
 def get_material_text(material: dict) -> str:
-    text = material.get("extracted_text")
-    if text:
-        return text
-    try:
-        text = extract_text_from_url(material["file_url"])
-        if text and text.strip():
-            supabase.table("materials").update(
-                {"extracted_text": text}
-            ).eq("id", material["id"]).execute()
-        return text or ""
-    except Exception:
-        return ""
+    # Extraction is deliberately performed only by the resumable admin route.
+    # User-facing reads must never trigger a full textbook download/parse.
+    return safe_text(material.get("extracted_text"))
 
 
 def generate_questions_from_chunk(chunk: str, question_type: str, num_questions: int, course_code: str) -> list:
@@ -1185,6 +1176,11 @@ class MaterialQuestionBankGenerationRequest(BaseModel):
     batch_size: int = Field(default=5, ge=3, le=5)
 
 
+class MaterialExtractionRequest(BaseModel):
+    material_id: int
+    pages_per_run: int = Field(default=12, ge=1, le=20)
+
+
 class CourseMaterialMapRequest(BaseModel):
     course_code: str
     material_id: int
@@ -1216,9 +1212,12 @@ MAPPING_CATEGORY_ORDER = {
 }
 
 MATERIAL_PRIORITY_ORDER = {
-    "high": 0,
-    "medium": 1,
-    "low": 2,
+    "start_here": 0,
+    "core": 1,
+    "recommended": 2,
+    "supplementary": 3,
+    "reference": 4,
+    "unreviewed": 5,
 }
 
 
@@ -1290,18 +1289,110 @@ def generate_greeting(request: GreetingRequest):
 
     return {"greeting": greeting.strip(), "username": request.username}
 
+@app.post("/admin/material-extractions/run")
+def run_material_extraction(
+    request: MaterialExtractionRequest,
+    x_admin_key: Optional[str] = Header(default=None),
+):
+    """Extract one bounded page batch and persist progress for a material."""
+    require_admin(x_admin_key)
+    material_result = (
+        supabase.table("materials")
+        .select("id, title, file_url, extracted_text")
+        .eq("id", request.material_id)
+        .maybe_single()
+        .execute()
+    )
+    material = getattr(material_result, "data", None)
+    if not material:
+        raise HTTPException(status_code=404, detail="Material not found.")
+
+    job_result = (
+        supabase.table("material_extractions")
+        .select("*")
+        .eq("material_id", material["id"])
+        .maybe_single()
+        .execute()
+    )
+    job = getattr(job_result, "data", None) or {}
+    if job.get("status") == "complete":
+        return {
+            "material_id": material["id"],
+            "material_title": material["title"],
+            "status": "complete",
+            "processed_pages": job.get("processed_pages", 0),
+            "total_pages": job.get("total_pages", 0),
+            "extracted_characters": job.get("extracted_characters", 0),
+            "complete": True,
+        }
+
+    batch = extract_document_batch_from_url(
+        material["file_url"],
+        start_page=int(job.get("processed_pages") or 0),
+        page_count=request.pages_per_run,
+    )
+    existing_text = safe_text(material.get("extracted_text"))
+    batch_text = safe_text(batch.get("text"))
+    combined_text = existing_text
+    if batch_text:
+        combined_text = f"{existing_text}\n\n{batch_text}".strip() if existing_text else batch_text
+
+    scanned_pages = list(job.get("scanned_pages") or [])
+    scanned_pages.extend(batch.get("scanned_pages") or [])
+    scanned_pages = sorted(set(page for page in scanned_pages if isinstance(page, int)))
+    error = batch.get("error")
+    complete = bool(batch.get("complete"))
+    status = "failed" if error else ("complete" if complete and not scanned_pages else "extracting")
+    if complete and scanned_pages:
+        status = "needs_ocr"
+
+    payload = {
+        "material_id": material["id"],
+        "status": status,
+        "file_type": batch.get("file_type") or job.get("file_type"),
+        "total_pages": int(batch.get("total_pages") or job.get("total_pages") or 0),
+        "processed_pages": int(batch.get("next_page") or job.get("processed_pages") or 0),
+        "extracted_characters": len(combined_text),
+        "scanned_pages": scanned_pages,
+        "last_error": error,
+        "completed_at": datetime.now(timezone.utc).isoformat() if status == "complete" else None,
+    }
+    if job:
+        supabase.table("material_extractions").update(payload).eq("id", job["id"]).execute()
+    else:
+        supabase.table("material_extractions").insert(payload).execute()
+
+    if batch_text:
+        supabase.table("materials").update({"extracted_text": combined_text}).eq("id", material["id"]).execute()
+
+    return {
+        "material_id": material["id"],
+        "material_title": material["title"],
+        "status": status,
+        "processed_pages": payload["processed_pages"],
+        "total_pages": payload["total_pages"],
+        "extracted_characters": payload["extracted_characters"],
+        "scanned_pages": [page + 1 for page in scanned_pages],
+        "remaining_pages": max(payload["total_pages"] - payload["processed_pages"], 0),
+        "complete": status == "complete",
+        "error": error,
+    }
+
+
 @app.post("/extract-text/{material_id}")
 def extract_text(material_id: int):
-    result = supabase.table("materials").select("*").eq("id", material_id).execute()
+    """Return cached source text without triggering a long-running extraction."""
+    result = supabase.table("materials").select("id, title, extracted_text").eq("id", material_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Material not found")
     material = result.data[0]
-    if material.get("extracted_text"):
-        return {"material_id": material_id, "title": material["title"], "text": material["extracted_text"], "cached": True}
-    text = extract_text_from_url(material["file_url"])
-    if text:
-        supabase.table("materials").update({"extracted_text": text}).eq("id", material_id).execute()
-    return {"material_id": material_id, "title": material["title"], "text": text, "cached": False}
+    text = safe_text(material.get("extracted_text"))
+    if not text:
+        raise HTTPException(
+            status_code=409,
+            detail="This material has not been extracted yet. Use the protected page-batch extraction endpoint.",
+        )
+    return {"material_id": material_id, "title": material["title"], "text": text, "cached": True}
 
 @app.get("/admin/material-classification-status")
 def material_classification_status(
@@ -1939,6 +2030,20 @@ def build_course_material_map(
         raise HTTPException(status_code=404, detail="Material not found.")
     if safe_text(material.get("course_code")).strip().upper() != course_code:
         raise HTTPException(status_code=422, detail="This material is not assigned to the requested course.")
+
+    extraction_result = (
+        supabase.table("material_extractions").select("status, processed_pages, total_pages, last_error")
+        .eq("material_id", material["id"])
+        .maybe_single().execute()
+    )
+    extraction = getattr(extraction_result, "data", None) or {}
+    if extraction and extraction.get("status") != "complete":
+        detail = "Swift must finish extracting this material before it maps course units."
+        if extraction.get("status") == "needs_ocr":
+            detail = "This scanned material is queued for OCR before Swift can map it to the course."
+        elif extraction.get("status") == "failed" and extraction.get("last_error"):
+            detail = f"This material extraction failed: {safe_text(extraction['last_error'])[:250]}"
+        raise HTTPException(status_code=422, detail=detail)
 
     text = get_material_text(material)
     if len(text.strip()) < 300:
