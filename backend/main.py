@@ -2229,7 +2229,7 @@ def generate_material_question_bank(
         .maybe_single()
         .execute()
     )
-    bank = existing_result.data
+    bank = getattr(existing_result, "data", None)
     existing_questions = (bank or {}).get("questions") or []
     target_count = (bank or {}).get("target_count", request.target_count)
     if len(existing_questions) >= target_count:
