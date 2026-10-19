@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 
 import httpx
 from typing import Optional
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
@@ -29,6 +29,34 @@ from pdf_utils import (
 load_dotenv()
 
 app = FastAPI()
+
+COURSE_CONTENT_BANK_COURSES = {
+    "BME 102": "Introduction to Biomedical Engineering",
+    "CEE 101": "Introduction to Civil Engineering",
+    "CPE 112": "Introduction to Computer Engineering",
+    "MEE 101": "Introduction to Mechanical Engineering",
+    "MME 102": "Introduction to Materials and Metallurgical Engineering",
+    "PGE 101": "Introduction to Petroleum and Gas Industry",
+    "TEL 102": "Introduction to Electrical Engineering",
+    "BME 211": "Human Anatomy I",
+    "BME 213": "Human Physiology I",
+    "BME 214": "General Biochemistry I",
+    "BME 215": "Human Genetics I",
+    "CET 202": "Basic Electronics",
+    "EEE 208": "Electrical Engineering Materials",
+    "MEE 207": "Applied Mechanics",
+    "PGE 201": "Petroleum Geology",
+    "TEL 202": "Applied Electricity II",
+    "MME 301": "Thermodynamics of Materials",
+    "MME 304": "Chemistry of Materials",
+    "MME 305": "Engineering Materials: Structure and Properties",
+    "MME 312": "Physical Metallurgy I",
+    "PNG 308": "Drilling and Well Design I",
+    "PNG 310": "Fundamentals of Reservoir Engineering",
+    "PNG 312": "Oil and Gas Production Engineering I",
+    "SSG 321": "Continuum Mechanics I",
+    "SSG 322": "Control Theory I",
+}
 
 app.add_middleware(
     CORSMiddleware,
@@ -976,6 +1004,163 @@ def outline_topic_names(outline: dict) -> list[str]:
     return topics
 
 
+def course_outline_source(outline: dict) -> str:
+    """Build the verified syllabus boundary used for course-content banks."""
+    topics = outline_topic_names(outline)
+    return "\n".join(
+        [
+            f"Official title: {safe_text(outline.get('official_title')).strip()}",
+            f"Course description: {safe_text(outline.get('concise_description')).strip()}",
+            "Ordered course topics:",
+            *[f"- {topic}" for topic in topics],
+        ]
+    ).strip()
+
+
+def select_outline_focus(topics: list[str], existing_questions: list, batch_size: int) -> list[str]:
+    """Choose the least-covered syllabus topics for the next resumable batch."""
+    coverage = {topic: 0 for topic in topics}
+    for question in existing_questions:
+        for topic in question.get("source_topics") or []:
+            if topic in coverage:
+                coverage[topic] += 1
+    ordered = sorted(topics, key=lambda topic: (coverage[topic], topics.index(topic)))
+    return ordered[: min(max(2, batch_size // 2), 4, len(ordered))]
+
+
+def generate_course_content_questions(
+    course_code: str,
+    course_title: str,
+    outline_source: str,
+    focus_topics: list[str],
+    question_type: str,
+    num_questions: int,
+    avoid_questions: list[str],
+) -> tuple[list, str]:
+    """Generate a batch whose scope is the verified outline, not uploaded files."""
+    if question_type == "mcq":
+        format_instructions = """
+Return {"questions":[{"question":"...","options":{"A":"...","B":"...","C":"...","D":"..."},"correct_answer":"A","explanation":"..."}]}.
+Each item must have four plausible options, one unambiguously correct answer, and a concise explanation.
+"""
+    elif question_type == "german":
+        format_instructions = """
+Return {"questions":[{"question":"A statement with exactly one _____ blank","correct_answer":"...","acceptable_answers":["..."],"hint":"...","explanation":"..."}]}.
+The blank must test one precise technical term, quantity, law, process, component, or relationship.
+"""
+    else:
+        format_instructions = """
+Return {"questions":[{"question":"...","answer":"...","key_points":["...","..."],"max_marks":10,"difficulty":"medium","explanation":"..."}]}.
+Every model answer must be complete enough for revision. Use 5-15 marks and easy, medium, or hard difficulty.
+"""
+
+    prompt = f"""Create exactly {num_questions} high-quality university {question_type} questions for {course_code}: {course_title}.
+
+The verified course outline below defines the strict scope. Use established university-level subject knowledge to write accurate questions and answers, but do not introduce a topic outside this outline.
+
+Focus this batch on: {json.dumps(focus_topics, ensure_ascii=False)}
+
+Quality rules:
+- Test understanding and application, not document wording or metadata.
+- Stay at the level implied by the course title and outline.
+- Do not duplicate or lightly rephrase a question within the batch.
+- Do not duplicate or lightly rephrase anything in the existing-question list.
+- Avoid trivia, vague wording, trick questions, and unsupported numerical data.
+- Use standard notation and SI units where relevant.
+- Return JSON only.
+
+{format_instructions}
+
+Verified course outline:
+{outline_source}
+
+Existing questions to avoid:
+{json.dumps(avoid_questions, ensure_ascii=False)}
+"""
+    providers = (
+        ("Gemini", lambda: gemini_generate_json(prompt, max_tokens=4200)),
+        ("Groq fallback", lambda: groq_generate(prompt, max_tokens=4200, temperature=0.2)),
+    )
+    for provider, generate in providers:
+        try:
+            questions = parse_json(generate()).get("questions", [])
+            if not isinstance(questions, list):
+                continue
+            valid = []
+            for question in questions:
+                if not isinstance(question, dict) or not safe_text(question.get("question")).strip():
+                    continue
+                if not safe_text(question.get("explanation")).strip():
+                    continue
+                if question_type == "mcq":
+                    options = question.get("options")
+                    answer = question.get("correct_answer")
+                    if not isinstance(options, dict) or set(options) != {"A", "B", "C", "D"} or answer not in options:
+                        continue
+                elif question_type == "german":
+                    if question["question"].count("_____") != 1 or not safe_text(question.get("correct_answer")).strip():
+                        continue
+                else:
+                    if not safe_text(question.get("answer")).strip():
+                        continue
+                    if not isinstance(question.get("key_points"), list) or len(question["key_points"]) < 2:
+                        continue
+                    try:
+                        question["max_marks"] = int(question.get("max_marks"))
+                    except (TypeError, ValueError):
+                        continue
+                    if not 5 <= question["max_marks"] <= 15:
+                        continue
+                    if question.get("difficulty") not in {"easy", "medium", "hard"}:
+                        question["difficulty"] = "medium"
+                valid.append(question)
+            if len(valid) >= num_questions:
+                return valid[:num_questions], provider
+        except Exception:
+            continue
+    raise HTTPException(status_code=503, detail="Swift could not generate this course-content batch.")
+
+
+def validate_course_content_questions(
+    questions: list,
+    outline_source: str,
+    question_type: str,
+    existing_question_texts: list[str],
+) -> tuple[list, str]:
+    """Independently check factual accuracy, clarity, uniqueness, and syllabus scope."""
+    prompt = f"""Act as a strict university question-bank reviewer. Review the numbered candidate {question_type} questions against the verified course outline.
+
+Accept an item only when:
+- its topic is clearly inside the outline;
+- its question, answer, options, and explanation are factually correct;
+- it is unambiguous and appropriate for the course level;
+- it is not materially duplicated in this batch.
+- it is not materially duplicated in the existing bank.
+
+Return JSON only: {{"accepted_indices":[0,2]}}
+
+Candidates:
+{json.dumps(questions, ensure_ascii=False)}
+
+Existing bank questions:
+{json.dumps(existing_question_texts, ensure_ascii=False)}
+
+Verified course outline:
+{outline_source}
+"""
+    for provider, generate in (
+        ("Gemini", lambda: gemini_generate_json(prompt, max_tokens=1200)),
+        ("Groq fallback", lambda: groq_generate(prompt, max_tokens=1200, temperature=0)),
+    ):
+        try:
+            indices = parse_json(generate()).get("accepted_indices", [])
+            accepted = [questions[i] for i in indices if isinstance(i, int) and 0 <= i < len(questions)]
+            return accepted, provider
+        except Exception:
+            continue
+    return [], "Validation unavailable"
+
+
 def map_material_chunk_to_course(
     course_code: str,
     topics: list[str],
@@ -1173,6 +1358,13 @@ class MaterialQuestionBankGenerationRequest(BaseModel):
     material_id: int
     question_type: str = "mcq"
     target_count: int = Field(default=100, ge=1, le=500)
+    batch_size: int = Field(default=5, ge=3, le=5)
+
+
+class CourseContentBankGenerationRequest(BaseModel):
+    course_code: str
+    question_type: str = "mcq"
+    target_count: int = Field(default=100, ge=1, le=100)
     batch_size: int = Field(default=5, ge=3, le=5)
 
 
@@ -1945,6 +2137,257 @@ def generate_question_bank(
         "materials_processed": processed_materials
     }
 
+
+def generate_course_content_question_bank_batch(
+    request: CourseContentBankGenerationRequest,
+) -> dict:
+    """Add one independently reviewed batch to a course-outline bank."""
+    course_code = safe_text(request.course_code).strip().upper()
+    question_type = safe_text(request.question_type).strip().lower()
+    if course_code not in COURSE_CONTENT_BANK_COURSES:
+        raise HTTPException(status_code=422, detail=f"{course_code} is not in the approved 25-course generation list.")
+    if question_type not in {"mcq", "german", "theory"}:
+        raise HTTPException(status_code=422, detail="question_type must be mcq, german, or theory.")
+
+    protected_result = (
+        supabase.table("question_banks").select("id")
+        .eq("course_code", course_code).eq("question_type", question_type)
+        .limit(1).execute()
+    )
+    if protected_result.data:
+        return {
+            "course_code": course_code,
+            "question_type": question_type,
+            "status": "protected_existing",
+            "complete": True,
+            "added": 0,
+        }
+
+    outline_result = (
+        supabase.table("course_outlines")
+        .select("course_code, official_title, concise_description, ordered_topics, verification_status")
+        .eq("course_code", course_code).limit(1).execute()
+    )
+    outline = (outline_result.data or [None])[0]
+    if not outline:
+        raise HTTPException(status_code=422, detail=f"{course_code} needs a course outline before generation.")
+    if outline.get("verification_status") == "unverified":
+        raise HTTPException(status_code=422, detail=f"{course_code} has not yet been verified.")
+    topics = outline_topic_names(outline)
+    if not topics:
+        raise HTTPException(status_code=422, detail=f"{course_code} has no usable course topics.")
+
+    bank_result = (
+        supabase.table("course_content_question_banks").select("*")
+        .eq("course_code", course_code).eq("question_type", question_type)
+        .limit(1).execute()
+    )
+    bank = (bank_result.data or [None])[0]
+    existing_questions = list((bank or {}).get("questions") or [])
+    target_count = request.target_count
+    if len(existing_questions) >= target_count:
+        if bank and bank.get("status") != "approved":
+            supabase.table("course_content_question_banks").update(
+                {"status": "approved", "generated_at": datetime.now(timezone.utc).isoformat(), "last_error": None}
+            ).eq("id", bank["id"]).execute()
+        return {
+            "course_code": course_code,
+            "question_type": question_type,
+            "status": "approved",
+            "complete": True,
+            "total_questions": len(existing_questions),
+            "added": 0,
+        }
+
+    focus_topics = select_outline_focus(topics, existing_questions, request.batch_size)
+    requested_count = min(request.batch_size, target_count - len(existing_questions))
+    outline_source = course_outline_source(outline)
+    candidates, generation_provider = generate_course_content_questions(
+        course_code=course_code,
+        course_title=safe_text(outline.get("official_title")) or COURSE_CONTENT_BANK_COURSES[course_code],
+        outline_source=outline_source,
+        focus_topics=focus_topics,
+        question_type=question_type,
+        num_questions=requested_count,
+        avoid_questions=[safe_text(question.get("question")) for question in existing_questions],
+    )
+    accepted, validation_provider = validate_course_content_questions(
+        candidates,
+        outline_source,
+        question_type,
+        [safe_text(question.get("question")) for question in existing_questions],
+    )
+
+    seen = {normalise_question_text(question) for question in existing_questions}
+    added = []
+    for question in accepted:
+        key = normalise_question_text(question)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        question["source_kind"] = "verified_course_outline"
+        question["source_topics"] = focus_topics
+        added.append(question)
+    if not added:
+        raise HTTPException(status_code=503, detail="No new questions passed independent review in this batch.")
+
+    questions = (existing_questions + added)[:target_count]
+    complete = len(questions) >= target_count
+    payload = {
+        "course_code": course_code,
+        "question_type": question_type,
+        "questions": questions,
+        "target_count": target_count,
+        "status": "approved" if complete else "generating",
+        "generation_provider": generation_provider,
+        "validation_provider": validation_provider,
+        "last_error": None,
+        "generated_at": datetime.now(timezone.utc).isoformat() if complete else None,
+    }
+    if bank:
+        supabase.table("course_content_question_banks").update(payload).eq("id", bank["id"]).execute()
+    else:
+        supabase.table("course_content_question_banks").insert(payload).execute()
+    return {
+        "course_code": course_code,
+        "question_type": question_type,
+        "status": payload["status"],
+        "complete": complete,
+        "total_questions": len(questions),
+        "added": len(added),
+        "focus_topics": focus_topics,
+        "generation_provider": generation_provider,
+        "validation_provider": validation_provider,
+    }
+
+
+@app.post("/admin/course-content-question-banks/generate")
+def generate_course_content_question_bank(
+    request: CourseContentBankGenerationRequest,
+    x_admin_key: Optional[str] = Header(default=None),
+):
+    require_admin(x_admin_key)
+    return generate_course_content_question_bank_batch(request)
+
+
+course_content_worker_running = False
+
+
+def run_all_course_content_question_banks() -> None:
+    """Resumable background worker for the approved 25 by 3 bank matrix."""
+    global course_content_worker_running
+    course_content_worker_running = True
+    try:
+        for course_code in COURSE_CONTENT_BANK_COURSES:
+            for question_type in ("mcq", "german", "theory"):
+                consecutive_failures = 0
+                for _ in range(60):
+                    try:
+                        result = generate_course_content_question_bank_batch(
+                            CourseContentBankGenerationRequest(
+                                course_code=course_code,
+                                question_type=question_type,
+                                target_count=100,
+                                batch_size=5,
+                            )
+                        )
+                        if result.get("complete"):
+                            break
+                        consecutive_failures = 0
+                    except Exception as error:
+                        consecutive_failures += 1
+                        detail = safe_text(getattr(error, "detail", error))[:500]
+                        existing = (
+                            supabase.table("course_content_question_banks").select("id")
+                            .eq("course_code", course_code).eq("question_type", question_type)
+                            .limit(1).execute()
+                        )
+                        row = (existing.data or [None])[0]
+                        failure_payload = {
+                            "course_code": course_code,
+                            "question_type": question_type,
+                            "status": "failed" if consecutive_failures >= 5 else "generating",
+                            "last_error": detail,
+                        }
+                        if row:
+                            supabase.table("course_content_question_banks").update(failure_payload).eq("id", row["id"]).execute()
+                        else:
+                            supabase.table("course_content_question_banks").insert(failure_payload).execute()
+                        if consecutive_failures >= 5:
+                            break
+                        time.sleep(2)
+    finally:
+        course_content_worker_running = False
+
+
+@app.post("/admin/course-content-question-banks/run-all")
+def start_all_course_content_question_banks(
+    background_tasks: BackgroundTasks,
+    x_admin_key: Optional[str] = Header(default=None),
+):
+    global course_content_worker_running
+    require_admin(x_admin_key)
+    if course_content_worker_running:
+        return {"started": False, "detail": "The course-content bank worker is already running."}
+    course_content_worker_running = True
+    background_tasks.add_task(run_all_course_content_question_banks)
+    return {
+        "started": True,
+        "courses": len(COURSE_CONTENT_BANK_COURSES),
+        "categories_per_course": 3,
+        "target_questions_per_category": 100,
+        "target_total": len(COURSE_CONTENT_BANK_COURSES) * 3 * 100,
+        "resumable": True,
+    }
+
+
+@app.get("/admin/course-content-question-banks/status")
+def get_course_content_question_bank_status(
+    x_admin_key: Optional[str] = Header(default=None),
+):
+    require_admin(x_admin_key)
+    generated = supabase.table("course_content_question_banks").select(
+        "course_code, question_type, questions, target_count, status, last_error, updated_at"
+    ).execute()
+    curated = supabase.table("question_banks").select("course_code, question_type, questions").execute()
+    generated_by_key = {
+        (row["course_code"], row["question_type"]): row
+        for row in generated.data or []
+        if row.get("course_code") in COURSE_CONTENT_BANK_COURSES
+    }
+    curated_by_key = {
+        (row["course_code"], row["question_type"]): row
+        for row in curated.data or []
+        if row.get("course_code") in COURSE_CONTENT_BANK_COURSES
+    }
+    banks = []
+    for course_code, title in COURSE_CONTENT_BANK_COURSES.items():
+        for question_type in ("mcq", "german", "theory"):
+            key = (course_code, question_type)
+            if key in curated_by_key:
+                row = curated_by_key[key]
+                banks.append({
+                    "course_code": course_code,
+                    "title": title,
+                    "question_type": question_type,
+                    "status": "protected_existing",
+                    "question_count": len(row.get("questions") or []),
+                    "target_count": 100,
+                    "last_error": None,
+                })
+            else:
+                row = generated_by_key.get(key, {})
+                banks.append({
+                    "course_code": course_code,
+                    "title": title,
+                    "question_type": question_type,
+                    "status": row.get("status", "not_started"),
+                    "question_count": len(row.get("questions") or []),
+                    "target_count": row.get("target_count", 100),
+                    "last_error": row.get("last_error"),
+                })
+    return {"worker_running": course_content_worker_running, "banks": banks}
+
 @app.post("/quiz")
 def get_quiz(request: CourseQuizRequest):
     result = supabase.table("question_banks").select("*").eq("course_code", request.course_code).eq("question_type", request.question_type).execute()
@@ -1962,6 +2405,33 @@ def get_quiz(request: CourseQuizRequest):
             "questions": selected,
             "from_bank": True,
             "bank_size": len(all_questions)
+        }
+
+    outline_bank_result = (
+        supabase.table("course_content_question_banks")
+        .select("questions")
+        .eq("course_code", request.course_code)
+        .eq("question_type", request.question_type)
+        .eq("status", "approved")
+        .limit(1).execute()
+    )
+    if outline_bank_result.data:
+        all_questions = outline_bank_result.data[0].get("questions") or []
+        if request.section:
+            filtered = [
+                question for question in all_questions
+                if request.section.lower() in safe_text(question.get("question")).lower()
+            ]
+            questions = filtered if filtered else all_questions
+        else:
+            questions = all_questions
+        return {
+            "course_code": request.course_code,
+            "question_type": request.question_type,
+            "questions": random.sample(questions, min(request.num_questions, len(questions))),
+            "from_bank": True,
+            "bank_kind": "verified_course_outline",
+            "bank_size": len(all_questions),
         }
 
     # Only courses without a curated bank for this category draw from generated
@@ -2387,7 +2857,33 @@ def generate_theory_question(request: TheoryQuestionRequest):
             "from_bank": True
         }
 
-    # No bank exists - generate live
+    outline_bank = (
+        supabase.table("course_content_question_banks")
+        .select("questions")
+        .eq("course_code", request.course_code)
+        .eq("question_type", "theory")
+        .eq("status", "approved")
+        .limit(1).execute()
+    )
+    if outline_bank.data:
+        all_questions = outline_bank.data[0].get("questions") or []
+        if request.section:
+            filtered = [
+                question for question in all_questions
+                if request.section.lower() in safe_text(question.get("question")).lower()
+            ]
+            questions = filtered if filtered else all_questions
+        else:
+            questions = all_questions
+        return {
+            "course_code": request.course_code,
+            "questions": random.sample(questions, min(request.num_questions, len(questions))),
+            "from_bank": True,
+            "bank_kind": "verified_course_outline",
+            "bank_size": len(all_questions),
+        }
+
+    # Preserve the existing live fallback for courses with no approved bank.
     materials = supabase.table("materials").select("*").eq("course_code", request.course_code).execute()
     if not materials.data:
         raise HTTPException(status_code=404, detail="No materials found for this course")
@@ -2472,12 +2968,27 @@ def get_practice_courses():
     bank_result = supabase.table("question_banks").select(
         "course_code, question_type, questions"
     ).execute()
+    outline_bank_result = (
+        supabase.table("course_content_question_banks")
+        .select("course_code, question_type, questions")
+        .eq("status", "approved")
+        .execute()
+    )
+    all_banks = list(bank_result.data or [])
+    protected_keys = {
+        (bank.get("course_code"), bank.get("question_type"))
+        for bank in all_banks
+    }
+    all_banks.extend(
+        bank for bank in (outline_bank_result.data or [])
+        if (bank.get("course_code"), bank.get("question_type")) not in protected_keys
+    )
 
-    if not bank_result.data:
+    if not all_banks:
         return {"courses": []}
 
     course_codes = sorted(
-        {bank["course_code"] for bank in bank_result.data if bank.get("course_code")}
+        {bank["course_code"] for bank in all_banks if bank.get("course_code")}
     )
 
     course_result = supabase.table("courses").select(
@@ -2489,7 +3000,7 @@ def get_practice_courses():
     }
 
     grouped = {}
-    for bank in bank_result.data:
+    for bank in all_banks:
         course_code = bank.get("course_code")
         if not course_code:
             continue
