@@ -95,7 +95,7 @@ export default function HomePage() {
   }
 
   return (
-    <AppShell onSignOut={handleSignOut}>
+    <AppShell onSignOut={handleSignOut} className="swift-home-shell">
       <div className="swift-home-page">
         <section className="swift-home-intro">
           <p className="swift-eyebrow">Swift for UNILAG Engineering</p>
