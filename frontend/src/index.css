@@ -624,14 +624,33 @@ button {
 }
 
 .viewer-study-check-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   border: 1px solid #00003f;
-  border-radius: 999px;
+  border-radius: 8px;
+  background: #fff;
+  color: #00003f;
+  padding: 6px 7px 6px 11px;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.viewer-study-check-button span {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
   background: #00003f;
   color: #fff;
-  padding: 10px 16px;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
+  transition: transform 180ms ease;
+}
+
+.viewer-study-check-button:hover span {
+  transform: translateX(2px);
 }
 
 .study-check-page {
@@ -4440,10 +4459,10 @@ button {
   margin: 0;
   color: #171717;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(2rem, 3.6vw, 3.3rem);
+  font-size: clamp(1.75rem, 2.6vw, 2.65rem);
   font-weight: 500;
   letter-spacing: -0.055em;
-  line-height: 1.12;
+  line-height: 1.16;
 }
 
 .quiz-options {
@@ -4902,7 +4921,9 @@ button {
   }
 
   .quiz-question-panel h1 {
-    font-size: clamp(2rem, 10vw, 2.9rem);
+    font-size: clamp(1.55rem, 7.2vw, 2.15rem);
+    letter-spacing: -0.04em;
+    line-height: 1.18;
   }
 
   .question-navigator {

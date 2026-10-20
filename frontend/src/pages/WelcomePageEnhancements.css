@@ -66,6 +66,11 @@
   padding-top: 120px;
 }
 
+.swift-landing-way--restored .swift-landing-section-intro,
+.swift-landing-way--restored .swift-landing-steps {
+  transform: none;
+}
+
 .swift-step-photo--cafe {
   background-image:
     linear-gradient(0deg, rgba(0, 0, 63, 0.9), rgba(0, 0, 63, 0.08)),
@@ -441,9 +446,20 @@
     transform: none;
   }
 
+  .swift-landing-hero {
+    min-height: auto;
+    display: block;
+    padding-bottom: 30px;
+  }
+
   .swift-hero-study-card {
+    width: min(310px, calc(100% - 32px));
+    margin: 42px auto 58px;
+    position: relative;
+    right: auto;
+    bottom: auto;
     animation: none;
-    transform: rotate(-3deg);
+    transform: rotate(-1.5deg);
   }
 
   .cinema-journey-copy {
