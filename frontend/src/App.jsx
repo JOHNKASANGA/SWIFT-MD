@@ -14,6 +14,8 @@ import CGPACalculatorPage from "./pages/CGPACalculatorPage";
 import PracticePage from "./pages/PracticePage";
 import NotFoundPage from "./pages/NotFoundPage";
 import MaterialStudyCheckPage from "./pages/MaterialStudyCheckPage";
+import PublicPolicyPage from "./pages/PublicPolicyPage";
+import "./interior-polish.css";
 
 export default function App() {
   useEffect(() => {
@@ -46,6 +48,9 @@ export default function App() {
         <Route path="/view/:materialId" element={<ViewerPage />} />
         <Route path="/study-check/:materialId" element={<MaterialStudyCheckPage />} />
         <Route path="/cgpa" element={<CGPACalculatorPage />} />
+        <Route path="/privacy" element={<PublicPolicyPage page="privacy" />} />
+        <Route path="/terms" element={<PublicPolicyPage page="terms" />} />
+        <Route path="/accessibility" element={<PublicPolicyPage page="accessibility" />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>
