@@ -29,13 +29,6 @@
   color: var(--swift-navy);
 }
 
-.swift-home-shell .swift-brand-mark {
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 3px;
-  background: var(--swift-navy);
-  box-shadow: 5px 5px 0 rgba(130, 147, 255, 0.48);
-}
-
 .swift-home-shell .swift-nav {
   padding: 4px;
   border: 1px solid var(--swift-line);
@@ -140,10 +133,35 @@
 }
 
 .swift-home-shell .study-deck .swift-primary-button {
-  border-color: var(--swift-blue);
-  border-radius: 3px;
-  background: var(--swift-blue);
+  gap: 14px;
+  padding: 8px 9px 8px 18px;
+  border-color: rgba(255, 255, 255, 0.68);
+  border-radius: 999px;
+  background: #fff;
   color: var(--swift-navy);
+  box-shadow: 0 12px 30px rgba(0, 0, 30, 0.24);
+}
+
+.swift-home-shell .study-deck .swift-primary-button span {
+  width: 31px;
+  height: 31px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--swift-navy);
+  color: #fff;
+  transition: transform 180ms ease;
+}
+
+.swift-home-shell .study-deck .swift-primary-button:hover {
+  border-color: #fff;
+  background: var(--swift-paper);
+  color: var(--swift-navy);
+  transform: translateY(-2px);
+}
+
+.swift-home-shell .study-deck .swift-primary-button:hover span {
+  transform: translateX(2px);
 }
 
 .swift-home-shell .deck-stage {
