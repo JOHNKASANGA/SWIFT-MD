@@ -87,6 +87,28 @@ button {
   letter-spacing: -0.06em;
 }
 
+.swift-brand .swift-brand-mark {
+  width: 105px;
+  height: 45px;
+  flex: 0 0 105px;
+  display: block;
+  border: 0;
+  border-radius: 0;
+  background: url("./assets/swift-logo-motion.png") center / contain no-repeat;
+  box-shadow: none;
+  color: transparent;
+  font-size: 0;
+}
+
+.swift-brand > span:last-child {
+  width: 1px;
+  height: 1px;
+  position: absolute;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .swift-nav {
   display: flex;
   align-items: center;
