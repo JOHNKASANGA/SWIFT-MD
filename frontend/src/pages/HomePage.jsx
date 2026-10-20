@@ -25,6 +25,14 @@ const quickActions = [
   },
 ];
 
+function buildGreeting(user) {
+  const username =
+    user.user_metadata?.full_name || user.email?.split("@")[0] || "there";
+  const hour = new Date().getHours();
+  const period = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+  return `Good ${period}, ${username}. Pick up where you left off.`;
+}
+
 export default function HomePage() {
   const navigate = useNavigate();
   const [greeting, setGreeting] = useState("");
@@ -32,31 +40,6 @@ export default function HomePage() {
   const initialized = useRef(false);
 
   useEffect(() => {
-    async function loadGreeting(currentUser) {
-      const username =
-        currentUser.user_metadata?.full_name || currentUser.email.split("@")[0];
-
-      try {
-        const response = await fetch(
-          `${import.meta.env.VITE_BACKEND_URL}/generate-greeting`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username }),
-          }
-        );
-
-        if (!response.ok) throw new Error("Greeting request failed");
-
-        const data = await response.json();
-        setGreeting(data.greeting.replace(/^#+\s*/, ""));
-      } catch {
-        setGreeting(`Welcome back, ${username}. Pick up where you left off.`);
-      } finally {
-        setLoading(false);
-      }
-    }
-
     const { data: listener } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (event === "INITIAL_SESSION") {
@@ -67,7 +50,8 @@ export default function HomePage() {
 
           if (!initialized.current) {
             initialized.current = true;
-            loadGreeting(session.user);
+            setGreeting(buildGreeting(session.user));
+            setLoading(false);
           }
         }
 

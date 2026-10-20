@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import swiftLogo from "../assets/swift-logo-motion.png";
-import studyDesk from "../assets/swift-study-desk.png";
+import swiftLogo from "../assets/swift-logo-motion.webp";
+import studyDesk from "../assets/swift-study-desk.webp";
 import "./WelcomePageEnhancements.css";
 
 const journeySteps = [

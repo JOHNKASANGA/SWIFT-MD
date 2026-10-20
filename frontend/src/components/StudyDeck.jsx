@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import studyDeskImage from "../assets/swift-study-desk.png";
+import studyDeskImage from "../assets/swift-study-desk.webp";
 
 const levels = [
   {
@@ -69,6 +69,8 @@ export default function StudyDeck() {
           src={studyDeskImage}
           alt="Engineering study desk with notes, calculator, and technical drawings"
           className="deck-study-photo"
+          loading="lazy"
+          decoding="async"
         />
 
         <div className={`deck-stack level-${selectedLevel}`}>

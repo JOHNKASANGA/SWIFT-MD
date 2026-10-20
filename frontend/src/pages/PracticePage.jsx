@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { getPracticeCourses } from "../lib/practice";
 import AppShell from "../components/AppShell";
 
 const MODE_LABELS = {
@@ -19,16 +20,7 @@ export default function PracticePage() {
   useEffect(() => {
     async function loadPracticeCourses() {
       try {
-        const response = await fetch(
-          `${import.meta.env.VITE_BACKEND_URL}/practice-courses`
-        );
-
-        if (!response.ok) {
-          throw new Error("Practice courses request failed");
-        }
-
-        const data = await response.json();
-        setCourses(data.courses || []);
+        setCourses(await getPracticeCourses());
       } catch {
         setError(
           "Practice is unavailable right now. Please check your connection and try again."

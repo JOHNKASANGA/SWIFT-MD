@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { getQuizQuestions } from "../lib/practice";
 import MathText from "../components/MathText";
 import MathToolbar from "../components/MathToolbar";
 
@@ -387,24 +388,11 @@ function MCQQuiz({
 
     async function fetchQuestions() {
       try {
-        const response = await fetch(
-          `${import.meta.env.VITE_BACKEND_URL}/quiz`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              course_code: courseCode,
-              num_questions: numQuestions,
-              question_type: "mcq",
-            }),
-          }
-        );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.detail || "Questions could not be loaded.");
-        }
+        const data = await getQuizQuestions({
+          courseCode,
+          numQuestions,
+          questionType: "mcq",
+        });
 
         if (!data.questions?.length) {
           throw new Error("This course does not have MCQ questions yet.");
@@ -630,24 +618,11 @@ function GermanQuiz({
 
     async function fetchQuestions() {
       try {
-        const response = await fetch(
-          `${import.meta.env.VITE_BACKEND_URL}/quiz`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              course_code: courseCode,
-              num_questions: numQuestions,
-              question_type: "german",
-            }),
-          }
-        );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.detail || "Questions could not be loaded.");
-        }
+        const data = await getQuizQuestions({
+          courseCode,
+          numQuestions,
+          questionType: "german",
+        });
 
         if (!data.questions?.length) {
           throw new Error(
@@ -940,22 +915,11 @@ function TheoryQuiz({ courseCode, attemptMode, onExit }) {
 
     async function fetchQuestions() {
       try {
-        const response = await fetch(
-          `${import.meta.env.VITE_BACKEND_URL}/generate-theory-question`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              course_code: courseCode,
-              num_questions: 100,
-            }),
-          }
-        );
-
-        const data = await response.json();
-
-        if (!response.ok)
-          throw new Error(data.detail || "Theory paper could not load.");
+        const data = await getQuizQuestions({
+          courseCode,
+          numQuestions: 100,
+          questionType: "theory",
+        });
 
         if (!cancelled) {
           const questions = data.questions || [];
