@@ -6,11 +6,11 @@ const navigationItems = [
   { label: "CGPA", to: "/cgpa" },
 ];
 
-export default function AppShell({ children, onSignOut }) {
+export default function AppShell({ children, onSignOut, className = "" }) {
   const navigate = useNavigate();
 
   return (
-    <div className="swift-app-shell">
+    <div className={`swift-app-shell ${className}`.trim()}>
       <header className="swift-header">
         <button
           type="button"

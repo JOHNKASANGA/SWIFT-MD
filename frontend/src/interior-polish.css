@@ -1,13 +1,5 @@
-/* Shared visual language for Swift's signed-in and utility pages. */
-:where(
-  .swift-app-shell,
-  .auth-page,
-  .viewer-page,
-  .study-check-page,
-  .quiz-setup-page,
-  .quiz-page,
-  .not-found-page
-) {
+/* The redesigned interior treatment is intentionally limited to /home. */
+.swift-home-shell {
   --swift-navy: #00003f;
   --swift-blue: #8293ff;
   --swift-paper: #f5f4f0;
@@ -15,16 +7,13 @@
   --swift-line: rgba(0, 0, 63, 0.14);
   --swift-muted: #626a7d;
   --swift-shadow: 0 22px 60px rgba(0, 0, 63, 0.08);
-}
-
-.swift-app-shell {
   background:
     linear-gradient(90deg, transparent 0, transparent 6.4%, var(--swift-line) 6.4%, var(--swift-line) calc(6.4% + 1px), transparent calc(6.4% + 1px)),
     var(--swift-paper);
   color: var(--swift-navy);
 }
 
-.swift-app-shell .swift-header {
+.swift-home-shell .swift-header {
   min-height: 82px;
   position: sticky;
   z-index: 40;
@@ -34,90 +23,74 @@
   backdrop-filter: blur(18px);
 }
 
-.swift-app-shell .swift-brand,
-.swift-app-shell .swift-nav-link.is-active,
-.swift-app-shell .swift-account-button:hover {
+.swift-home-shell .swift-brand,
+.swift-home-shell .swift-nav-link.is-active,
+.swift-home-shell .swift-account-button:hover {
   color: var(--swift-navy);
 }
 
-.swift-app-shell .swift-brand-mark,
-.viewer-page .swift-brand-mark,
-.study-check-page .swift-brand-mark,
-.quiz-page .swift-brand-mark,
-.quiz-setup-page .swift-brand-mark,
-.not-found-page .swift-brand-mark {
+.swift-home-shell .swift-brand-mark {
   border: 1px solid rgba(255, 255, 255, 0.28);
   border-radius: 3px;
   background: var(--swift-navy);
   box-shadow: 5px 5px 0 rgba(130, 147, 255, 0.48);
 }
 
-.swift-app-shell .swift-nav {
+.swift-home-shell .swift-nav {
   padding: 4px;
   border: 1px solid var(--swift-line);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.58);
 }
 
-.swift-app-shell .swift-nav-link {
+.swift-home-shell .swift-nav-link {
   border-radius: 999px;
 }
 
-.swift-app-shell .swift-nav-link:hover,
-.swift-app-shell .swift-nav-link.is-active {
+.swift-home-shell .swift-nav-link:hover,
+.swift-home-shell .swift-nav-link.is-active {
   background: var(--swift-white);
   box-shadow: 0 3px 14px rgba(0, 0, 63, 0.08);
 }
 
-.swift-app-shell .swift-account-button {
+.swift-home-shell .swift-account-button {
   padding: 9px 13px;
   border: 1px solid var(--swift-line);
   border-radius: 999px;
 }
 
-.swift-app-shell .swift-account-button:hover {
+.swift-home-shell .swift-account-button:hover {
   border-color: var(--swift-navy);
   background: var(--swift-white);
 }
 
-.swift-app-shell :where(
-  .swift-home-intro h1,
-  .section-heading h2,
-  .level-intro h1,
-  .course-intro h1,
-  .course-materials-heading h2,
-  .practice-intro h1,
-  .cgpa-intro h1,
-  .cgpa-workspace-heading h2,
-  .cgpa-section-heading h3
-) {
+.swift-home-shell :where(.swift-home-intro h1, .section-heading h2) {
   color: var(--swift-navy);
   font-family: Georgia, "Times New Roman", serif;
   font-weight: 400;
   letter-spacing: -0.065em;
 }
 
-.swift-app-shell .swift-eyebrow,
-.swift-app-shell :where(.course-library-code, .material-number, .practice-course-code) {
+.swift-home-shell .swift-eyebrow {
   color: #5368ed;
 }
 
-.swift-home-intro {
+.swift-home-shell .swift-home-intro {
   max-width: 820px;
   margin-bottom: 42px;
   padding-bottom: 34px;
   border-bottom: 1px solid var(--swift-line);
 }
 
-.swift-home-intro h1 {
+.swift-home-shell .swift-home-intro h1 {
   max-width: 760px;
 }
 
-.swift-home-intro .swift-greeting {
+.swift-home-shell .swift-home-intro .swift-greeting {
   color: var(--swift-muted);
 }
 
-.swift-app-shell .study-deck {
+.swift-home-shell .study-deck {
   position: relative;
   overflow: hidden;
   border-color: rgba(255, 255, 255, 0.16);
@@ -126,7 +99,7 @@
   box-shadow: var(--swift-shadow);
 }
 
-.swift-app-shell .study-deck::before {
+.swift-home-shell .study-deck::before {
   width: 46%;
   height: 1px;
   position: absolute;
@@ -137,74 +110,74 @@
   transform: rotate(-11deg);
 }
 
-.swift-app-shell .study-deck-copy {
+.swift-home-shell .study-deck-copy {
   position: relative;
   z-index: 1;
 }
 
-.swift-app-shell .study-deck .swift-eyebrow,
-.swift-app-shell .study-deck h2,
-.swift-app-shell .study-deck-description {
+.swift-home-shell .study-deck .swift-eyebrow,
+.swift-home-shell .study-deck h2,
+.swift-home-shell .study-deck-description {
   color: #fff;
 }
 
-.swift-app-shell .study-deck-description {
+.swift-home-shell .study-deck-description {
   color: rgba(255, 255, 255, 0.7);
 }
 
-.swift-app-shell .level-selector-button {
+.swift-home-shell .level-selector-button {
   border-color: rgba(255, 255, 255, 0.24);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.76);
 }
 
-.swift-app-shell .level-selector-button:hover,
-.swift-app-shell .level-selector-button.is-selected {
+.swift-home-shell .level-selector-button:hover,
+.swift-home-shell .level-selector-button.is-selected {
   border-color: #fff;
   background: #fff;
   color: var(--swift-navy);
 }
 
-.swift-app-shell .study-deck .swift-primary-button {
+.swift-home-shell .study-deck .swift-primary-button {
   border-color: var(--swift-blue);
   border-radius: 3px;
   background: var(--swift-blue);
   color: var(--swift-navy);
 }
 
-.swift-app-shell .deck-stage {
+.swift-home-shell .deck-stage {
   border-color: rgba(255, 255, 255, 0.22);
   border-radius: 4px;
   background: #11115b;
 }
 
-.swift-app-shell .deck-card {
+.swift-home-shell .deck-card {
   border-radius: 4px;
 }
 
-.swift-app-shell .deck-card.is-selected {
+.swift-home-shell .deck-card.is-selected {
   border-color: var(--swift-blue);
   box-shadow: 0 24px 46px rgba(0, 0, 30, 0.3);
 }
 
-.swift-app-shell .deck-caption,
-.swift-app-shell .deck-caption strong {
+.swift-home-shell .deck-caption,
+.swift-home-shell .deck-caption strong {
   color: #fff;
   text-shadow: 0 1px 12px var(--swift-navy);
 }
 
-.swift-quick-actions .section-heading {
+.swift-home-shell .swift-quick-actions .section-heading {
   border-bottom-color: var(--swift-line);
 }
 
-.swift-app-shell .quick-action-grid {
+.swift-home-shell .quick-action-grid {
   gap: 14px;
   padding-top: 14px;
   border: 0;
 }
 
-.swift-app-shell .quick-action {
+.swift-home-shell .quick-action {
   min-height: 260px;
   display: flex;
   flex-direction: column;
@@ -214,373 +187,87 @@
   transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1), background 200ms ease, box-shadow 260ms ease;
 }
 
-.swift-app-shell .quick-action:first-child {
+.swift-home-shell .quick-action:first-child {
   padding-left: 28px;
 }
 
-.swift-app-shell .quick-action:last-child {
+.swift-home-shell .quick-action:last-child {
   border-right: 1px solid var(--swift-line);
 }
 
-.swift-app-shell .quick-action:hover {
+.swift-home-shell .quick-action:hover {
   background: var(--swift-white);
   box-shadow: var(--swift-shadow);
   transform: translateY(-5px);
 }
 
-.swift-app-shell .quick-action h3 {
+.swift-home-shell .quick-action h3 {
   color: var(--swift-navy);
   font-family: Georgia, "Times New Roman", serif;
   font-size: 1.5rem;
   font-weight: 400;
 }
 
-.swift-app-shell .quick-action button {
+.swift-home-shell .quick-action button {
   margin-top: auto;
   color: var(--swift-navy);
 }
 
-.swift-page :where(.level-intro, .course-intro, .practice-intro, .cgpa-intro) {
-  position: relative;
-  padding-top: 22px;
-}
-
-.swift-page :where(.level-intro, .course-intro, .practice-intro, .cgpa-intro)::before {
-  width: 74px;
-  height: 2px;
-  position: absolute;
-  top: 0;
-  left: 0;
-  background: var(--swift-blue);
-  content: "";
-}
-
-.swift-app-shell .swift-back-button {
-  color: var(--swift-muted);
-}
-
-.swift-app-shell .swift-back-button:hover {
-  color: var(--swift-navy);
-}
-
-.swift-app-shell :where(.course-search input, .course-department-filter select) {
-  border-color: var(--swift-line);
-  background: rgba(255, 255, 255, 0.72);
-}
-
-.swift-app-shell .course-search input {
-  padding: 13px 15px;
-  border: 1px solid var(--swift-line);
-  border-radius: 3px;
-}
-
-.swift-app-shell :where(.course-search input, .course-department-filter select):focus {
-  border-color: var(--swift-blue);
-  box-shadow: 0 0 0 3px rgba(130, 147, 255, 0.14);
-}
-
-.swift-app-shell :where(.course-library-list, .material-list, .practice-course-list) {
-  display: grid;
-  gap: 10px;
-  border: 0;
-}
-
-.swift-app-shell :where(.course-library-row, .material-row, .practice-course-row) {
-  border: 1px solid var(--swift-line);
-  background: rgba(255, 255, 255, 0.62);
-  transition: border-color 180ms ease, background 180ms ease, transform 220ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 220ms ease;
-}
-
-.swift-app-shell .course-library-row {
-  padding: 22px 20px;
-}
-
-.swift-app-shell .material-row {
-  padding: 18px 20px;
-}
-
-.swift-app-shell .practice-course-row {
-  padding: 25px 22px;
-}
-
-.swift-app-shell :where(.course-library-row, .material-row, .practice-course-row):hover {
-  border-color: rgba(0, 0, 63, 0.28);
-  background: #fff;
-  box-shadow: 0 12px 32px rgba(0, 0, 63, 0.06);
-  transform: translateX(5px);
-}
-
-.swift-app-shell .course-library-row:hover,
-.swift-app-shell .material-row:hover {
-  padding-right: 20px;
-  padding-left: 20px;
-}
-
-.swift-app-shell .course-library-arrow,
-.swift-app-shell .material-open {
-  color: var(--swift-navy);
-}
-
-.swift-app-shell .practice-filter {
-  gap: 7px;
-  border-bottom-color: var(--swift-line);
-}
-
-.swift-app-shell .practice-filter button,
-.swift-app-shell .practice-start-button {
-  border-color: var(--swift-line);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--swift-navy);
-}
-
-.swift-app-shell .practice-filter button.is-selected,
-.swift-app-shell .practice-start-button:hover {
-  border-color: var(--swift-navy);
-  background: var(--swift-navy);
-  color: #fff;
-}
-
-.swift-app-shell :where(.course-actions, .material-suggestion, .course-outline, .cgpa-guide-card, .cgpa-workspace) {
-  border-color: var(--swift-line);
-}
-
-.swift-app-shell :where(.course-outline, .material-suggestion, .cgpa-guide-card) {
-  background: rgba(255, 255, 255, 0.62);
-}
-
-.swift-app-shell :where(.swift-primary-button, .cgpa-calculate-button) {
-  border-color: var(--swift-navy);
-  border-radius: 3px;
-  background: var(--swift-navy);
-}
-
-.swift-app-shell :where(.swift-primary-button, .cgpa-calculate-button):hover {
-  border-color: var(--swift-blue);
-  background: var(--swift-blue);
-  color: var(--swift-navy);
-}
-
-.swift-app-shell :where(.cgpa-mode-option, .cgpa-record-card, .cgpa-semester-card, .cgpa-result-panel, .cgpa-semester-result) {
-  border-color: var(--swift-line);
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.68);
-}
-
-.swift-app-shell .cgpa-mode-option:hover {
-  border-color: var(--swift-blue);
-  box-shadow: var(--swift-shadow);
-  transform: translateY(-3px);
-}
-
-.auth-page {
-  background:
-    linear-gradient(90deg, var(--swift-navy) 0, var(--swift-navy) 34%, transparent 34%),
-    var(--swift-paper);
-}
-
-.auth-page .public-header {
-  border-bottom-color: rgba(0, 0, 63, 0.16);
-}
-
-.auth-page .swift-brand {
-  color: #fff;
-}
-
-.auth-page .swift-brand-mark {
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: 3px;
-  background: transparent;
-  box-shadow: 5px 5px 0 var(--swift-blue);
-}
-
-.auth-page .auth-intro .swift-eyebrow,
-.auth-page .auth-intro h1,
-.auth-page .auth-intro > p:last-child {
-  color: #fff;
-}
-
-.auth-page .auth-intro > p:last-child {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.auth-page .auth-card {
-  border-color: var(--swift-line);
-  border-radius: 5px;
-  box-shadow: var(--swift-shadow);
-}
-
-.auth-page :where(.auth-form input, .google-button) {
-  border-color: var(--swift-line);
-}
-
-.auth-page :where(.auth-submit-button, .auth-secondary-button) {
-  border-color: var(--swift-navy);
-  border-radius: 3px;
-  background: var(--swift-navy);
-}
-
-.auth-page :where(.auth-submit-button, .auth-secondary-button):hover {
-  border-color: var(--swift-blue);
-  background: var(--swift-blue);
-  color: var(--swift-navy);
-}
-
-:where(.viewer-page, .study-check-page, .quiz-setup-page, .quiz-page, .not-found-page) {
-  background: var(--swift-paper);
-  color: var(--swift-navy);
-}
-
-:where(.viewer-header, .study-check-header, .quiz-focus-header, .not-found-header) {
-  border-bottom-color: var(--swift-line);
-  background: rgba(245, 244, 240, 0.92);
-  backdrop-filter: blur(18px);
-}
-
-:where(.study-check-intro h1, .quiz-setup-intro h1, .viewer-fallback h1, .not-found-copy h1) {
-  color: var(--swift-navy);
-  font-family: Georgia, "Times New Roman", serif;
-  font-weight: 400;
-  letter-spacing: -0.065em;
-}
-
-:where(.study-check-form, .study-check-session, .quiz-setup-section, .quiz-mode-card, .quiz-question-panel, .viewer-fallback) {
-  border-color: var(--swift-line);
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 16px 44px rgba(0, 0, 63, 0.05);
-}
-
-:where(.study-check-page, .quiz-setup-page, .quiz-page, .viewer-page) .swift-primary-button,
-.viewer-study-check-button {
-  border-color: var(--swift-navy);
-  border-radius: 3px;
-  background: var(--swift-navy);
-  color: #fff;
-}
-
-:where(.study-check-page, .quiz-setup-page, .quiz-page, .viewer-page) .swift-primary-button:hover,
-.viewer-study-check-button:hover {
-  border-color: var(--swift-blue);
-  background: var(--swift-blue);
-  color: var(--swift-navy);
-}
-
-@media (max-width: 1024px) {
-  .auth-page {
-    background: var(--swift-paper);
-  }
-
-  .auth-page .public-header {
-    width: min(calc(100% - 32px), 680px);
-  }
-
-  .auth-page .swift-brand,
-  .auth-page .auth-intro .swift-eyebrow,
-  .auth-page .auth-intro h1 {
-    color: var(--swift-navy);
-  }
-
-  .auth-page .auth-intro > p:last-child {
-    color: var(--swift-muted);
-  }
-
-  .auth-page .swift-brand-mark {
-    border-color: var(--swift-navy);
-    background: var(--swift-navy);
-  }
-}
-
 @media (max-width: 760px) {
-  .swift-app-shell {
+  .swift-home-shell {
     background: var(--swift-paper);
   }
 
-  .swift-app-shell .swift-header {
+  .swift-home-shell .swift-header {
     width: calc(100% - 28px);
     min-height: 70px;
   }
 
-  .swift-app-shell .swift-nav {
+  .swift-home-shell .swift-nav {
     gap: 1px;
     padding: 3px;
   }
 
-  .swift-app-shell .swift-nav-link {
+  .swift-home-shell .swift-nav-link,
+  .swift-home-shell .swift-account-button {
     padding: 7px 8px;
     font-size: 0.74rem;
   }
 
-  .swift-app-shell .swift-account-button {
-    padding: 7px 8px;
-    font-size: 0.74rem;
-  }
-
-  .swift-home-intro {
+  .swift-home-shell .swift-home-intro {
     padding-bottom: 26px;
   }
 
-  .swift-app-shell .study-deck {
+  .swift-home-shell .study-deck {
     padding: 34px 22px;
   }
 
-  .swift-app-shell .quick-action-grid {
+  .swift-home-shell .quick-action-grid {
     grid-template-columns: 1fr;
   }
 
-  .swift-app-shell .quick-action {
+  .swift-home-shell .quick-action {
     min-height: 210px;
-  }
-
-  .swift-app-shell .course-library-row {
-    grid-template-columns: 72px minmax(0, 1fr) auto;
-    gap: 12px;
-    padding: 18px 14px;
-  }
-
-  .swift-app-shell .material-row {
-    grid-template-columns: 36px minmax(0, 1fr) auto;
-    gap: 10px;
-    padding: 16px 12px;
-  }
-
-  .swift-app-shell .practice-course-row {
-    align-items: flex-start;
-    padding: 20px 16px;
-  }
-
-  .swift-app-shell :where(.course-library-row, .material-row, .practice-course-row):hover {
-    transform: none;
-  }
-
-  .swift-app-shell .course-library-row:hover {
-    padding-right: 14px;
-    padding-left: 14px;
-  }
-
-  .swift-app-shell .material-row:hover {
-    padding-right: 12px;
-    padding-left: 12px;
   }
 }
 
 @media (max-width: 520px) {
-  .swift-app-shell .swift-header {
+  .swift-home-shell .swift-header {
     grid-template-columns: auto 1fr auto;
     gap: 8px;
   }
 
-  .swift-app-shell .swift-brand > span:last-child {
+  .swift-home-shell .swift-brand > span:last-child {
     display: none;
   }
 
-  .swift-app-shell .swift-nav {
+  .swift-home-shell .swift-nav {
     justify-self: center;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .swift-app-shell :where(.quick-action, .course-library-row, .material-row, .practice-course-row, .cgpa-mode-option) {
+  .swift-home-shell .quick-action {
     transition: none;
   }
 }
