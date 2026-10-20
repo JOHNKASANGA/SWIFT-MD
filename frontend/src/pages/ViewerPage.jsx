@@ -119,7 +119,7 @@ export default function ViewerPage() {
 
         <div className="viewer-header-actions">
           <button type="button" className="viewer-study-check-button" onClick={() => navigate(`/study-check/${material.id}`)}>
-            Generate study check
+            Study check <span aria-hidden="true">→</span>
           </button>
           <a href={material.file_url} target="_blank" rel="noopener noreferrer" className="viewer-external-link">
             Open externally <span aria-hidden="true">↗</span>
