@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { getPracticeCourses } from "../lib/practice";
 import AppShell from "../components/AppShell";
 
 const MATERIAL_SECTIONS = [
@@ -375,14 +376,14 @@ export default function CoursePage() {
 
         if (courseError) throw courseError;
 
-        const [materialsResult, practiceResult, outlineResult] =
+        const practiceRequest = getPracticeCourses().catch(() => []);
+        const [materialsResult, outlineResult] =
           await Promise.all([
             supabase
               .from("materials")
               .select("*")
               .eq("course_code", courseData.code)
               .order("title", { ascending: true }),
-            fetch(`${import.meta.env.VITE_BACKEND_URL}/practice-courses`),
             supabase
               .from("course_outlines")
               .select("*")
@@ -392,21 +393,20 @@ export default function CoursePage() {
 
         if (materialsResult.error) throw materialsResult.error;
 
-        let practiceAvailable = false;
-
-        if (practiceResult.ok) {
-          const practiceData = await practiceResult.json();
-          practiceAvailable = (practiceData.courses || []).some(
-            (practiceCourse) => practiceCourse.code === courseData.code
-          );
-        }
-
         if (!isMounted) return;
 
         setCourse(courseData);
         setMaterials(materialsResult.data || []);
         setOutline(outlineResult.error ? null : outlineResult.data);
-        setHasPractice(practiceAvailable);
+        practiceRequest.then((practiceCourses) => {
+          if (isMounted) {
+            setHasPractice(
+              practiceCourses.some(
+                (practiceCourse) => practiceCourse.code === courseData.code
+              )
+            );
+          }
+        });
       } catch (fetchError) {
         console.error("Error fetching course page:", fetchError);
 
