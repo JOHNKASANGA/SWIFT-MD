@@ -856,10 +856,10 @@ def generate_study_check_questions(
     focus: str,
 ) -> tuple[list, str]:
     """Generate a small source-grounded study check with a named provider."""
-    if question_type not in {"mcq", "german"}:
+    if question_type not in {"mcq", "german", "theory"}:
         raise HTTPException(
             status_code=422,
-            detail="question_type must be mcq or german.",
+            detail="question_type must be mcq, german, or theory.",
         )
 
     if question_type == "mcq":
@@ -877,7 +877,7 @@ Return this JSON shape:
 }
 Each question must have exactly four options and exactly one correct answer.
 """
-    else:
+    elif question_type == "german":
         format_instructions = """
 Return this JSON shape:
 {
@@ -892,6 +892,26 @@ Return this JSON shape:
   ]
 }
 Each question must have one specific answer found in the source.
+"""
+    else:
+        format_instructions = """
+Return this JSON shape:
+{
+  "questions": [
+    {
+      "question": "A clear university theory question",
+      "answer": "A concise model answer supported entirely by the source",
+      "key_points": ["First required point", "Second required point"],
+      "max_marks": 10,
+      "difficulty": "medium",
+      "explanation": "Why these points answer the question"
+    }
+  ]
+}
+Each question must be answerable in roughly 3-10 sentences. Mix explanation,
+comparison, derivation, application, and calculation questions only when the
+source supports them. The model answer must be complete enough for revision.
+Use an integer max_marks from 5 to 15 and difficulty easy, medium, or hard.
 """
 
     focus_instruction = (
@@ -920,7 +940,14 @@ Material extract:
 
     providers = (
         ("Gemini", lambda: gemini_generate_json(prompt)),
-        ("Groq fallback", lambda: groq_generate(prompt, max_tokens=2200, temperature=0.2)),
+        (
+            "Groq fallback",
+            lambda: groq_generate(
+                prompt,
+                max_tokens=3600 if question_type == "theory" else 2200,
+                temperature=0.2,
+            ),
+        ),
     )
 
     for provider, generate in providers:
@@ -936,16 +963,34 @@ Material extract:
                     continue
                 if not safe_text(question.get("question")).strip():
                     continue
-                if not safe_text(question.get("correct_answer")).strip():
-                    continue
                 if not safe_text(question.get("explanation")).strip():
                     continue
                 if question_type == "mcq":
+                    if not safe_text(question.get("correct_answer")).strip():
+                        continue
                     options = question.get("options")
                     if not isinstance(options, dict) or set(options) != {"A", "B", "C", "D"}:
                         continue
                     if question.get("correct_answer") not in options:
                         continue
+                elif question_type == "german":
+                    if not safe_text(question.get("correct_answer")).strip():
+                        continue
+                else:
+                    if not safe_text(question.get("answer")).strip():
+                        continue
+                    key_points = question.get("key_points")
+                    if not isinstance(key_points, list) or len(key_points) < 2:
+                        continue
+                    try:
+                        max_marks = int(question.get("max_marks"))
+                    except (TypeError, ValueError):
+                        continue
+                    if not 5 <= max_marks <= 15:
+                        continue
+                    question["max_marks"] = max_marks
+                    if question.get("difficulty") not in {"easy", "medium", "hard"}:
+                        question["difficulty"] = "medium"
                 valid_questions.append(question)
 
             if len(valid_questions) >= num_questions:
@@ -2653,8 +2698,8 @@ def generate_material_question_bank(
 ):
     """Generate and validate one small batch toward a material's permanent bank."""
     require_admin(x_admin_key)
-    if request.question_type not in {"mcq", "german"}:
-        raise HTTPException(status_code=422, detail="Question banks currently support mcq or german.")
+    if request.question_type not in {"mcq", "german", "theory"}:
+        raise HTTPException(status_code=422, detail="Question banks support mcq, german, or theory.")
 
     material_result = (
         supabase.table("materials")
@@ -2699,7 +2744,7 @@ def generate_material_question_bank(
         .maybe_single()
         .execute()
     )
-    bank = existing_result.data
+    bank = getattr(existing_result, "data", None)
     existing_questions = (bank or {}).get("questions") or []
     target_count = (bank or {}).get("target_count", request.target_count)
     if len(existing_questions) >= target_count:
@@ -2888,25 +2933,42 @@ def generate_theory_question(request: TheoryQuestionRequest):
     if not materials.data:
         raise HTTPException(status_code=404, detail="No materials found for this course")
 
-    all_text = ""
-    for material in materials.data[:3]:
-        text = get_material_text(material)
-        if text:
-            all_text += f"\n\n{text}"
-    all_text = all_text[:8000]
+    # When no protected curated theory bank exists, build the paper from every
+    # approved per-material theory bank for the course. This gives each request
+    # a fresh course-wide shuffle while preserving source provenance.
+    generated_result = (
+        supabase.table("material_question_banks")
+        .select("material_id, questions")
+        .eq("course_code", request.course_code)
+        .eq("question_type", "theory")
+        .eq("status", "approved")
+        .execute()
+    )
+    generated_questions = []
+    for material_bank in generated_result.data or []:
+        generated_questions.extend(material_bank.get("questions") or [])
+    if generated_questions:
+        if request.section:
+            filtered = [
+                question for question in generated_questions
+                if request.section.lower() in safe_text(question.get("question")).lower()
+            ]
+            questions = filtered if filtered else generated_questions
+        else:
+            questions = generated_questions
+        return {
+            "course_code": request.course_code,
+            "questions": random.sample(questions, min(request.num_questions, len(questions))),
+            "from_bank": True,
+            "bank_kind": "generated_material_pool",
+            "bank_size": len(generated_questions),
+            "materials_in_pool": len(generated_result.data or []),
+        }
 
-    if not all_text.strip():
-        raise HTTPException(status_code=400, detail="Could not extract text from materials")
-
-    questions = generate_questions_from_chunk(all_text, "theory", request.num_questions, request.course_code)
-    if not questions:
-        raise HTTPException(status_code=500, detail="Failed to generate theory questions. Please try again.")
-
-    return {
-        "course_code": request.course_code,
-        "questions": questions,
-        "from_bank": False
-    }
+    raise HTTPException(
+        status_code=404,
+        detail=f"No theory question bank exists yet for {request.course_code}. Live generation has been disabled to avoid low-quality questions.",
+    )
 
 
 @app.post("/grade-theory")
