@@ -8,6 +8,7 @@ import time
 import hmac
 import hashlib
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
@@ -2273,49 +2274,80 @@ def generate_course_content_question_bank(
 course_content_worker_running = False
 
 
+def course_content_parallel_workers() -> int:
+    """Keep the free providers responsive while advancing multiple banks at once."""
+    try:
+        configured = int(os.getenv("COURSE_CONTENT_BANK_WORKERS", "2"))
+    except (TypeError, ValueError):
+        configured = 2
+    return max(1, min(configured, 3))
+
+
+def run_course_content_question_bank(course_code: str, question_type: str) -> None:
+    """Complete one resumable bank without weakening generation or review checks."""
+    consecutive_failures = 0
+    for _ in range(60):
+        try:
+            result = generate_course_content_question_bank_batch(
+                CourseContentBankGenerationRequest(
+                    course_code=course_code,
+                    question_type=question_type,
+                    target_count=100,
+                    batch_size=5,
+                )
+            )
+            if result.get("complete"):
+                return
+            consecutive_failures = 0
+        except Exception as error:
+            consecutive_failures += 1
+            detail = safe_text(getattr(error, "detail", error))[:500]
+            existing = (
+                supabase.table("course_content_question_banks").select("id")
+                .eq("course_code", course_code).eq("question_type", question_type)
+                .limit(1).execute()
+            )
+            row = (existing.data or [None])[0]
+            failure_payload = {
+                "course_code": course_code,
+                "question_type": question_type,
+                "status": "failed" if consecutive_failures >= 5 else "generating",
+                "last_error": detail,
+            }
+            if row:
+                supabase.table("course_content_question_banks").update(failure_payload).eq("id", row["id"]).execute()
+            else:
+                supabase.table("course_content_question_banks").insert(failure_payload).execute()
+            if consecutive_failures >= 5:
+                return
+            time.sleep(min(2 * consecutive_failures, 8))
+
+
 def run_all_course_content_question_banks() -> None:
-    """Resumable background worker for the approved 25 by 3 bank matrix."""
+    """Resumable, quality-gated worker for the approved 25 by 3 bank matrix."""
     global course_content_worker_running
     course_content_worker_running = True
+    work = [
+        (course_code, question_type)
+        for course_code in COURSE_CONTENT_BANK_COURSES
+        for question_type in ("mcq", "german", "theory")
+    ]
     try:
-        for course_code in COURSE_CONTENT_BANK_COURSES:
-            for question_type in ("mcq", "german", "theory"):
-                consecutive_failures = 0
-                for _ in range(60):
-                    try:
-                        result = generate_course_content_question_bank_batch(
-                            CourseContentBankGenerationRequest(
-                                course_code=course_code,
-                                question_type=question_type,
-                                target_count=100,
-                                batch_size=5,
-                            )
-                        )
-                        if result.get("complete"):
-                            break
-                        consecutive_failures = 0
-                    except Exception as error:
-                        consecutive_failures += 1
-                        detail = safe_text(getattr(error, "detail", error))[:500]
-                        existing = (
-                            supabase.table("course_content_question_banks").select("id")
-                            .eq("course_code", course_code).eq("question_type", question_type)
-                            .limit(1).execute()
-                        )
-                        row = (existing.data or [None])[0]
-                        failure_payload = {
-                            "course_code": course_code,
-                            "question_type": question_type,
-                            "status": "failed" if consecutive_failures >= 5 else "generating",
-                            "last_error": detail,
-                        }
-                        if row:
-                            supabase.table("course_content_question_banks").update(failure_payload).eq("id", row["id"]).execute()
-                        else:
-                            supabase.table("course_content_question_banks").insert(failure_payload).execute()
-                        if consecutive_failures >= 5:
-                            break
-                        time.sleep(2)
+        # Two concurrent banks roughly double throughput without exhausting the
+        # no-cost generation providers. A deliberate cap of three protects
+        # quality review and avoids a thundering herd after a cold start.
+        with ThreadPoolExecutor(max_workers=course_content_parallel_workers()) as pool:
+            futures = [
+                pool.submit(run_course_content_question_bank, course_code, question_type)
+                for course_code, question_type in work
+            ]
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception:
+                    # Individual bank failures are already persisted by the
+                    # per-bank worker, so one cannot stop the remaining queue.
+                    continue
     finally:
         course_content_worker_running = False
 
@@ -2338,6 +2370,7 @@ def start_all_course_content_question_banks(
         "target_questions_per_category": 100,
         "target_total": len(COURSE_CONTENT_BANK_COURSES) * 3 * 100,
         "resumable": True,
+        "parallel_workers": course_content_parallel_workers(),
     }
 
 
