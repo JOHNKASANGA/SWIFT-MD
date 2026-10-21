@@ -907,8 +907,11 @@ function TheoryQuiz({ courseCode, attemptMode, onExit }) {
   const [paper, setPaper] = useState([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [flipDirection, setFlipDirection] = useState(null);
+  const [booklet, setBooklet] = useState("paper");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const flipStageRef = useRef(null);
+  const swipeStartRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -944,16 +947,67 @@ function TheoryQuiz({ courseCode, attemptMode, onExit }) {
   function reshuffle() {
     setPaper(buildPaper(rawQuestions));
     setCurrentPage(0);
+    setBooklet("paper");
+  }
+
+  const answerPages = paper.flatMap((group) =>
+    group.parts
+      .filter((part) => part.answer)
+      .map((part) => ({
+        questionNumber: group.questionNumber,
+        totalMarks: group.totalMarks,
+        part,
+      }))
+  );
+  const pages = booklet === "answers" ? answerPages : paper;
+  const totalMarks = paper.reduce(
+    (sum, group) => sum + (group.totalMarks || 0),
+    0
+  );
+
+  function changeBooklet(nextBooklet) {
+    if (nextBooklet === booklet || flipDirection) return;
+    setBooklet(nextBooklet);
+    setCurrentPage(0);
+    requestAnimationFrame(() => {
+      flipStageRef.current?.scrollIntoView({ block: "start" });
+    });
   }
 
   function goToPage(nextIndex, direction) {
-    if (nextIndex < 0 || nextIndex >= paper.length || flipDirection) return;
+    if (nextIndex < 0 || nextIndex >= pages.length || flipDirection) return;
     setFlipDirection(direction);
   }
 
   function onFlipComplete(nextIndex) {
     setCurrentPage(nextIndex);
     setFlipDirection(null);
+    requestAnimationFrame(() => {
+      flipStageRef.current?.scrollIntoView({
+        block: "start",
+        behavior: "smooth",
+      });
+    });
+  }
+
+  function handleTouchStart(event) {
+    const touch = event.changedTouches[0];
+    swipeStartRef.current = { x: touch.clientX, y: touch.clientY };
+  }
+
+  function handleTouchEnd(event) {
+    if (!swipeStartRef.current) return;
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - swipeStartRef.current.x;
+    const deltaY = touch.clientY - swipeStartRef.current.y;
+    swipeStartRef.current = null;
+
+    if (Math.abs(deltaX) < 55 || Math.abs(deltaX) < Math.abs(deltaY) * 1.2) {
+      return;
+    }
+
+    if (deltaX < 0) goToPage(currentPage + 1, "next");
+    if (deltaX > 0) goToPage(currentPage - 1, "prev");
   }
 
   if (loading) return <LoadingScreen label="Preparing your theory paper..." />;
@@ -986,37 +1040,82 @@ function TheoryQuiz({ courseCode, attemptMode, onExit }) {
         </div>
       </header>
 
-      <main className="theory-screen-only theory-flip-stage">
+      {attemptMode === "practice" && answerPages.length > 0 && (
+        <nav className="theory-booklet-switch" aria-label="Theory booklet">
+          <button
+            type="button"
+            className={booklet === "paper" ? "is-active" : ""}
+            onClick={() => changeBooklet("paper")}
+          >
+            Question paper
+          </button>
+          <button
+            type="button"
+            className={booklet === "answers" ? "is-active" : ""}
+            onClick={() => changeBooklet("answers")}
+          >
+            Model answers
+          </button>
+        </nav>
+      )}
+
+      <main
+        ref={flipStageRef}
+        className="theory-screen-only theory-flip-stage"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         <button
           type="button"
           className="theory-flip-arrow theory-flip-arrow-prev"
           onClick={() => goToPage(currentPage - 1, "prev")}
           disabled={currentPage === 0 || !!flipDirection}
-          aria-label="Previous question"
+          aria-label="Previous page"
         >
           ←
         </button>
 
         <div className="theory-flip-perspective">
           <PaperSheet
-            group={paper[currentPage]}
+            page={
+              flipDirection
+                ? pages[
+                    flipDirection === "next"
+                      ? currentPage + 1
+                      : currentPage - 1
+                  ]
+                : pages[currentPage]
+            }
             courseCode={courseCode}
-            attemptMode={attemptMode}
-            isFirstPage={currentPage === 0}
+            booklet={booklet}
+            pageIndex={
+              flipDirection
+                ? flipDirection === "next"
+                  ? currentPage + 1
+                  : currentPage - 1
+                : currentPage
+            }
+            pageCount={pages.length}
+            totalMarks={totalMarks}
           />
 
           {flipDirection && (
             <FlippingSheet
-              outgoingGroup={paper[currentPage]}
-              incomingGroup={
-                paper[
+              outgoingPage={pages[currentPage]}
+              incomingPage={
+                pages[
                   flipDirection === "next" ? currentPage + 1 : currentPage - 1
                 ]
               }
               courseCode={courseCode}
-              attemptMode={attemptMode}
+              booklet={booklet}
               direction={flipDirection}
-              isFirstPage={currentPage === 0}
+              outgoingIndex={currentPage}
+              incomingIndex={
+                flipDirection === "next" ? currentPage + 1 : currentPage - 1
+              }
+              pageCount={pages.length}
+              totalMarks={totalMarks}
               onComplete={() =>
                 onFlipComplete(
                   flipDirection === "next" ? currentPage + 1 : currentPage - 1
@@ -1030,16 +1129,33 @@ function TheoryQuiz({ courseCode, attemptMode, onExit }) {
           type="button"
           className="theory-flip-arrow theory-flip-arrow-next"
           onClick={() => goToPage(currentPage + 1, "next")}
-          disabled={currentPage >= paper.length - 1 || !!flipDirection}
-          aria-label="Next question"
+          disabled={currentPage >= pages.length - 1 || !!flipDirection}
+          aria-label="Next page"
         >
           →
         </button>
       </main>
 
       <p className="theory-screen-only theory-page-indicator">
-        Question {currentPage + 1} of {paper.length}
+        Page {currentPage + 1} of {pages.length}
       </p>
+
+      <nav className="theory-screen-only theory-mobile-page-controls">
+        <button
+          type="button"
+          onClick={() => goToPage(currentPage - 1, "prev")}
+          disabled={currentPage === 0 || !!flipDirection}
+        >
+          Previous page
+        </button>
+        <button
+          type="button"
+          onClick={() => goToPage(currentPage + 1, "next")}
+          disabled={currentPage >= pages.length - 1 || !!flipDirection}
+        >
+          Next page
+        </button>
+      </nav>
 
       <div className="theory-print-only theory-print-sheet">
         {paper.map((group, index) => (
@@ -1047,99 +1163,217 @@ function TheoryQuiz({ courseCode, attemptMode, onExit }) {
             key={group.questionNumber}
             group={group}
             courseCode={courseCode}
-            attemptMode={attemptMode}
             isFirstPage={index === 0}
             isLastPage={index === paper.length - 1}
+            pageIndex={index}
+            pageCount={paper.length}
+            totalMarks={totalMarks}
           />
         ))}
+        {attemptMode === "practice" &&
+          answerPages.map((answerPage, index) => (
+            <PrintedAnswer
+              key={`${answerPage.questionNumber}-${answerPage.part.letter}`}
+              answerPage={answerPage}
+              courseCode={courseCode}
+              pageIndex={index}
+              pageCount={answerPages.length}
+            />
+          ))}
       </div>
     </div>
   );
 }
 
-function PaperHeader({ courseCode, isFirstPage }) {
-  if (!isFirstPage) return null;
+function PaperHeader({ courseCode, isFirstPage, booklet, totalMarks }) {
+  if (!isFirstPage) {
+    return (
+      <div className="theory-running-header">
+        <span>SWIFT</span>
+        <span>{courseCode}</span>
+        <span>{booklet === "answers" ? "MODEL ANSWERS" : "THEORY PRACTICE"}</span>
+      </div>
+    );
+  }
 
   return (
-    <div className="theory-paper-header">
-      <p className="theory-paper-brand">SWIFT PRACTICE PAPER</p>
+    <header className="theory-paper-header">
+      <p className="theory-paper-brand">SWIFT STUDY PAPER</p>
+      <p className="theory-paper-document-type">
+        {booklet === "answers" ? "MODEL ANSWER BOOKLET" : "THEORY PRACTICE PAPER"}
+      </p>
       <h2>{courseCode}</h2>
       <div className="theory-paper-meta">
-        <span>Duration: 2 Hours</span>
-        <span>Answer ALL Questions</span>
+        {booklet === "paper" ? (
+          <>
+            <span><b>Time allowed</b> 2 hours</span>
+            <span><b>Total marks</b> {totalMarks}</span>
+          </>
+        ) : (
+          <span>Use this booklet after attempting the question paper.</span>
+        )}
       </div>
-    </div>
+      {booklet === "paper" && (
+        <div className="theory-paper-instructions">
+          <b>Instructions</b>
+          <ol>
+            <li>Answer all questions.</li>
+            <li>Show every important step in calculations.</li>
+            <li>State any assumptions used in your answers.</li>
+          </ol>
+        </div>
+      )}
+    </header>
   );
 }
 
-function QuestionBody({ group, attemptMode }) {
+function QuestionBody({ group }) {
   if (!group) return null;
 
   return (
     <div className="theory-question-block">
-      <p className="theory-question-title">
-        QUESTION {group.questionNumber} ({group.totalMarks} Marks)
-      </p>
+      <div className="theory-question-title">
+        <span>Question {group.questionNumber}</span>
+        <span>[{group.totalMarks} marks]</span>
+      </div>
 
       {group.parts.map((part) => (
         <div key={part.letter} className="theory-question-part">
-          <p className="theory-question-part-text">
-            <span className="theory-part-letter">({part.letter})</span>{" "}
-            <MathText text={part.question} />{" "}
-            <span className="theory-part-marks">({part.max_marks} marks)</span>
-          </p>
-
-          {attemptMode === "practice" && part.answer && (
-            <div className="theory-answer-block">
-              <b>Answer</b>
-              <MathText text={part.answer} />
-            </div>
-          )}
+          <div className="theory-question-part-text">
+            <span className="theory-part-letter">({part.letter})</span>
+            <span className="theory-part-content">
+              <MathText text={part.question} />
+            </span>
+            <span className="theory-part-marks">[{part.max_marks}]</span>
+          </div>
         </div>
       ))}
     </div>
   );
 }
 
-function PaperSheet({ group, courseCode, attemptMode, isFirstPage }) {
+function AnswerBody({ answerPage }) {
+  if (!answerPage) return null;
+  const { questionNumber, part } = answerPage;
+
   return (
-    <div className="theory-paper-sheet">
-      <PaperHeader courseCode={courseCode} isFirstPage={isFirstPage} />
-      <QuestionBody group={group} attemptMode={attemptMode} />
+    <div className="theory-answer-page-content">
+      <div className="theory-answer-heading">
+        <span>Question {questionNumber} ({part.letter})</span>
+        <span>[{part.max_marks} marks]</span>
+      </div>
+      <div className="theory-answer-prompt">
+        <MathText text={part.question} />
+      </div>
+      <div className="theory-answer-rule" />
+      <p className="theory-answer-label">Model answer</p>
+      <div className="theory-answer-text">
+        <MathText text={part.answer} />
+      </div>
     </div>
   );
 }
 
-function FlippingSheet({
-  outgoingGroup,
-  incomingGroup,
+function PaperFooter({ pageIndex, pageCount, booklet }) {
+  const isLastPage = pageIndex === pageCount - 1;
+
+  return (
+    <footer className="theory-paper-footer">
+      <span>{isLastPage ? (booklet === "answers" ? "END OF MODEL ANSWERS" : "END OF PAPER") : "TURN OVER"}</span>
+      <span>Page {pageIndex + 1} of {pageCount}</span>
+    </footer>
+  );
+}
+
+function PaperSheet({
+  page,
   courseCode,
-  attemptMode,
+  booklet,
+  pageIndex,
+  pageCount,
+  totalMarks,
+}) {
+  const contentLength = booklet === "answers"
+    ? String(page?.part?.answer || "").length
+    : (page?.parts || []).reduce(
+        (sum, part) => sum + String(part.question || "").length,
+        0
+      );
+  const densityClass = contentLength > 2200
+    ? "theory-paper-sheet--compact"
+    : contentLength > 1400
+      ? "theory-paper-sheet--dense"
+      : "";
+
+  return (
+    <article className={`theory-paper-sheet ${densityClass}`.trim()}>
+      <PaperHeader
+        courseCode={courseCode}
+        isFirstPage={pageIndex === 0}
+        booklet={booklet}
+        totalMarks={totalMarks}
+      />
+      <div className="theory-paper-body">
+        {booklet === "answers" ? (
+          <AnswerBody answerPage={page} />
+        ) : (
+          <QuestionBody group={page} />
+        )}
+      </div>
+      <PaperFooter
+        pageIndex={pageIndex}
+        pageCount={pageCount}
+        booklet={booklet}
+      />
+    </article>
+  );
+}
+
+function FlippingSheet({
+  outgoingPage,
+  incomingPage,
+  courseCode,
+  booklet,
   direction,
-  isFirstPage,
+  outgoingIndex,
+  incomingIndex,
+  pageCount,
+  totalMarks,
   onComplete,
 }) {
   return (
     <div
       className={`theory-flipping-sheet theory-flip-${direction}`}
-      onAnimationEnd={onComplete}
+      onAnimationEnd={(event) => {
+        if (
+          event.animationName === "flip-next-turn" ||
+          event.animationName === "flip-prev-turn"
+        ) {
+          onComplete();
+        }
+      }}
     >
       <div className="theory-flip-face theory-flip-front">
         <PaperSheet
-          group={outgoingGroup}
+          page={outgoingPage}
           courseCode={courseCode}
-          attemptMode={attemptMode}
-          isFirstPage={isFirstPage}
+          booklet={booklet}
+          pageIndex={outgoingIndex}
+          pageCount={pageCount}
+          totalMarks={totalMarks}
         />
       </div>
       <div className="theory-flip-face theory-flip-back">
         <PaperSheet
-          group={incomingGroup}
+          page={incomingPage}
           courseCode={courseCode}
-          attemptMode={attemptMode}
-          isFirstPage={false}
+          booklet={booklet}
+          pageIndex={incomingIndex}
+          pageCount={pageCount}
+          totalMarks={totalMarks}
         />
       </div>
+      <span className="theory-page-fold" aria-hidden="true" />
     </div>
   );
 }
@@ -1147,15 +1381,43 @@ function FlippingSheet({
 function PrintedQuestion({
   group,
   courseCode,
-  attemptMode,
   isFirstPage,
-  isLastPage,
+  pageIndex,
+  pageCount,
+  totalMarks,
 }) {
   return (
     <div className="theory-print-page">
-      <PaperHeader courseCode={courseCode} isFirstPage={isFirstPage} />
-      <QuestionBody group={group} attemptMode={attemptMode} />
-      {!isLastPage && <p className="theory-turn-over">PLEASE TURN OVER</p>}
+      <PaperHeader
+        courseCode={courseCode}
+        isFirstPage={isFirstPage}
+        booklet="paper"
+        totalMarks={totalMarks}
+      />
+      <QuestionBody group={group} />
+      <PaperFooter
+        pageIndex={pageIndex}
+        pageCount={pageCount}
+        booklet="paper"
+      />
+    </div>
+  );
+}
+
+function PrintedAnswer({ answerPage, courseCode, pageIndex, pageCount }) {
+  return (
+    <div className="theory-print-page theory-print-answer-page">
+      <PaperHeader
+        courseCode={courseCode}
+        isFirstPage={pageIndex === 0}
+        booklet="answers"
+      />
+      <AnswerBody answerPage={answerPage} />
+      <PaperFooter
+        pageIndex={pageIndex}
+        pageCount={pageCount}
+        booklet="answers"
+      />
     </div>
   );
 }
