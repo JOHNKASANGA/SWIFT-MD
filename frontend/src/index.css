@@ -5697,6 +5697,8 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
+  min-height: 100vh;
+  background: #eef0f4;
 }
 
 .theory-paper-actions {
@@ -5706,12 +5708,14 @@ button {
 
 .theory-shuffle-button,
 .theory-download-button {
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
   border: 1px solid #00003f;
   background: #ffffff;
   color: #00003f;
-  border-radius: 6px;
-  padding: 6px 12px;
+  border-radius: 999px;
+  padding: 8px 14px;
   cursor: pointer;
 }
 
@@ -5720,81 +5724,247 @@ button {
   color: #ffffff;
 }
 
+.theory-booklet-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(360px, calc(100% - 32px));
+  margin: 24px auto 0;
+  padding: 4px;
+  border: 1px solid #d6dae3;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(9, 18, 45, 0.06);
+}
+
+.theory-booklet-switch button {
+  border: 0;
+  border-radius: 999px;
+  padding: 9px 14px;
+  background: transparent;
+  color: #5d6471;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.theory-booklet-switch button.is-active {
+  background: #00003f;
+  color: #ffffff;
+}
+
 .theory-flip-stage {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: clamp(12px, 2.4vw, 32px);
   width: 100%;
-  padding: 24px 0;
+  padding: 24px 16px 12px;
+  scroll-margin-top: 12px;
+  touch-action: pan-y;
 }
 
 .theory-flip-arrow {
-  font-size: 1.5rem;
-  background: none;
-  border: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  font-size: 1.25rem;
+  line-height: 1;
+  background: #ffffff;
+  border: 1px solid #d9dde5;
+  border-radius: 50%;
   color: #00003f;
   cursor: pointer;
-  padding: 12px;
+  padding: 0;
+  box-shadow: 0 5px 18px rgba(9, 18, 45, 0.09);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.theory-flip-arrow:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(9, 18, 45, 0.14);
 }
 
 .theory-flip-arrow:disabled {
-  color: #c7cedc;
+  color: #aeb4c0;
+  background: #f2f3f6;
+  box-shadow: none;
   cursor: default;
 }
 
 .theory-flip-perspective {
   position: relative;
-  width: min(700px, 90vw);
-  height: min(820px, 80vh);
-  perspective: 2000px;
+  width: min(690px, calc(100vw - 168px), calc((100svh - 178px) * 0.70707));
+  min-width: 460px;
+  aspect-ratio: 210 / 297;
+  perspective: 2600px;
+  filter: drop-shadow(0 22px 28px rgba(18, 25, 42, 0.17));
+}
+
+.theory-flip-perspective::before,
+.theory-flip-perspective::after {
+  content: "";
+  position: absolute;
+  inset: 5px -5px -5px 5px;
+  z-index: -2;
+  background: #f5f3ed;
+  border: 1px solid #d4d0c7;
+}
+
+.theory-flip-perspective::after {
+  inset: 2px -2px -2px 2px;
+  z-index: -1;
+  background: #fbfaf6;
 }
 
 .theory-paper-sheet {
   position: absolute;
   inset: 0;
-  background: #ffffff;
-  border: 1px solid #e2e6ef;
-  border-radius: 4px;
-  box-shadow: 0 12px 32px rgba(23, 23, 23, 0.14);
-  padding: 32px 40px;
-  overflow-y: auto;
-  font-family: Georgia, "Times New Roman", serif;
-  color: #171717;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background:
+    linear-gradient(90deg, rgba(45, 35, 20, 0.018), transparent 4%, transparent 96%, rgba(45, 35, 20, 0.018)),
+    #fffefb;
+  border: 1px solid #d2cec4;
+  border-radius: 1px;
+  box-shadow: inset 0 0 34px rgba(88, 71, 43, 0.025);
+  padding: 7.4% 8.2% 5.2%;
+  overflow: hidden;
+  font-family: "Times New Roman", Times, serif;
+  font-size: clamp(0.72rem, 1.22vw, 0.94rem);
+  line-height: 1.48;
+  color: #141414;
+  -webkit-font-smoothing: antialiased;
+}
+
+.theory-paper-sheet--dense {
+  font-size: clamp(0.67rem, 1.08vw, 0.84rem);
+  line-height: 1.4;
+}
+
+.theory-paper-sheet--compact {
+  font-size: clamp(0.61rem, 0.98vw, 0.77rem);
+  line-height: 1.34;
+}
+
+.theory-paper-body {
+  min-height: 0;
+  overflow: hidden;
 }
 
 .theory-paper-header {
   text-align: center;
-  border-bottom: 2px solid #171717;
-  padding-bottom: 12px;
-  margin-bottom: 20px;
+  border-bottom: 1.5px solid #151515;
+  padding-bottom: 3.6%;
+  margin-bottom: 4.4%;
 }
 
 .theory-paper-brand {
-  letter-spacing: 0.08em;
-  color: #00003f;
+  color: #111111;
+  font-size: 0.82em;
+  letter-spacing: 0.18em;
   font-weight: 700;
-  margin: 0 0 4px;
+  margin: 0 0 0.3em;
+}
+
+.theory-paper-document-type {
+  margin: 0 0 0.58em;
+  font-size: 0.74em;
+  letter-spacing: 0.1em;
 }
 
 .theory-paper-header h2 {
-  margin: 0 0 8px;
+  margin: 0 0 0.55em;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 1.48em;
+  line-height: 1;
+  letter-spacing: 0.045em;
 }
 
 .theory-paper-meta {
-  display: flex;
-  justify-content: center;
-  gap: 24px;
-  font-style: italic;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.1em;
+  padding: 0.75em 0;
+  border-top: 1px solid #77736b;
+  border-bottom: 1px solid #77736b;
+  font-size: 0.86em;
+  text-align: left;
 }
 
-.theory-question-title {
+.theory-paper-meta:has(> span:only-child) {
+  display: block;
+  text-align: center;
+}
+
+.theory-paper-meta span:last-child:not(:only-child) {
+  text-align: right;
+}
+
+.theory-paper-instructions {
+  margin-top: 1.05em;
+  font-size: 0.84em;
+  text-align: left;
+}
+
+.theory-paper-instructions > b {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.9em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.theory-paper-instructions ol {
+  margin: 0.35em 0 0;
+  padding-left: 1.45em;
+}
+
+.theory-running-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 1em;
+  align-items: center;
+  padding-bottom: 0.7em;
+  margin-bottom: 2.4em;
+  border-bottom: 1px solid #77736b;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.66em;
   font-weight: 700;
-  margin-bottom: 12px;
+  letter-spacing: 0.08em;
+}
+
+.theory-running-header span:last-child {
+  text-align: right;
+}
+
+.theory-question-title,
+.theory-answer-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1em;
+  padding-bottom: 0.55em;
+  border-bottom: 1px solid #77736b;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.9em;
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+  margin-bottom: 1.4em;
 }
 
 .theory-question-part {
-  margin-bottom: 18px;
+  margin-bottom: 1.55em;
+  break-inside: avoid;
+}
+
+.theory-question-part-text {
+  display: grid;
+  grid-template-columns: 2em minmax(0, 1fr) auto;
+  gap: 0.2em;
+  align-items: start;
+  margin: 0;
 }
 
 .theory-part-letter {
@@ -5802,28 +5972,74 @@ button {
 }
 
 .theory-part-marks {
-  font-style: italic;
-  color: #4b5563;
+  min-width: 3em;
+  margin-left: 0.8em;
+  text-align: right;
+  white-space: nowrap;
 }
 
-.theory-answer-block {
-  margin-top: 8px;
-  padding: 10px 14px;
-  background: #f0f4ff;
-  border-left: 3px solid #00003f;
-  border-radius: 4px;
+.theory-answer-heading {
+  margin-bottom: 1.1em;
+}
+
+.theory-answer-prompt {
+  color: #323232;
+  font-style: italic;
+}
+
+.theory-answer-rule {
+  height: 1px;
+  margin: 1.35em 0;
+  background: #77736b;
+}
+
+.theory-answer-label {
+  margin: 0 0 0.7em;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.theory-answer-text {
+  white-space: normal;
+}
+
+.theory-paper-footer {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: end;
+  padding-top: 0.8em;
+  border-top: 1px solid #77736b;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.62em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.theory-paper-footer span:first-child {
+  grid-column: 2;
+}
+
+.theory-paper-footer span:last-child {
+  grid-column: 3;
+  text-align: right;
 }
 
 .theory-flipping-sheet {
   position: absolute;
   inset: 0;
   transform-style: preserve-3d;
+  z-index: 4;
+  will-change: transform;
 }
 
 .theory-flip-face {
   position: absolute;
   inset: 0;
   backface-visibility: hidden;
+  transform-style: preserve-3d;
 }
 
 .theory-flip-back {
@@ -5832,50 +6048,128 @@ button {
 
 .theory-flip-next {
   transform-origin: left center;
-  animation: flip-next-turn 0.6s ease forwards;
+  animation: flip-next-turn 780ms cubic-bezier(0.42, 0, 0.2, 1) forwards;
 }
 
 .theory-flip-prev {
   transform-origin: right center;
-  animation: flip-prev-turn 0.6s ease forwards;
+  animation: flip-prev-turn 780ms cubic-bezier(0.42, 0, 0.2, 1) forwards;
+}
+
+.theory-flipping-sheet::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 55%,
+    rgba(22, 18, 12, 0.08) 80%,
+    rgba(22, 18, 12, 0.24) 100%
+  );
+  animation: theory-fold-shadow 780ms ease-in-out forwards;
+  backface-visibility: hidden;
+}
+
+.theory-flip-prev::after {
+  background: linear-gradient(
+    270deg,
+    transparent 55%,
+    rgba(22, 18, 12, 0.08) 80%,
+    rgba(22, 18, 12, 0.24) 100%
+  );
+}
+
+.theory-page-fold {
+  position: absolute;
+  top: 0;
+  right: -1px;
+  bottom: 0;
+  width: 18%;
+  opacity: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.66));
+  animation: theory-fold-highlight 780ms ease-in-out forwards;
+  backface-visibility: hidden;
+}
+
+.theory-flip-prev .theory-page-fold {
+  right: auto;
+  left: -1px;
+  transform: scaleX(-1);
 }
 
 @keyframes flip-next-turn {
-  from {
+  0% {
     transform: rotateY(0deg);
   }
-  to {
+  42% {
+    transform: rotateY(-72deg) scaleX(0.985);
+  }
+  58% {
+    transform: rotateY(-108deg) scaleX(0.985);
+  }
+  100% {
     transform: rotateY(-180deg);
   }
 }
 
 @keyframes flip-prev-turn {
-  from {
+  0% {
     transform: rotateY(0deg);
   }
-  to {
+  42% {
+    transform: rotateY(72deg) scaleX(0.985);
+  }
+  58% {
+    transform: rotateY(108deg) scaleX(0.985);
+  }
+  100% {
     transform: rotateY(180deg);
   }
 }
 
+@keyframes theory-fold-shadow {
+  0%, 100% { opacity: 0; }
+  38%, 62% { opacity: 1; }
+}
+
+@keyframes theory-fold-highlight {
+  0%, 100% { opacity: 0; }
+  45%, 55% { opacity: 0.8; }
+}
+
 .theory-page-indicator {
-  font-family: Georgia, "Times New Roman", serif;
-  color: #4b5563;
+  margin: 8px 0 0;
+  color: #545b68;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.theory-mobile-page-controls {
+  display: none;
 }
 
 .theory-print-only {
   display: none;
 }
 
-.theory-turn-over {
-  text-align: center;
-  font-weight: 700;
-  margin-top: 24px;
-}
-
 @media print {
+  @page {
+    size: A4;
+    margin: 18mm 18mm 15mm;
+  }
+
+  .theory-paper-page {
+    display: block;
+    background: #ffffff;
+  }
+
   .theory-screen-only,
-  .quiz-focus-header {
+  .quiz-focus-header,
+  .theory-booklet-switch {
     display: none !important;
   }
 
@@ -5884,9 +6178,12 @@ button {
   }
 
   .theory-print-page {
+    position: relative;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    min-height: 260mm;
     font-family: Georgia, "Times New Roman", serif;
     color: #171717;
-    padding: 24px;
     page-break-after: always;
   }
 
@@ -5896,26 +6193,100 @@ button {
 }
 
 @media (max-width: 760px) {
+  .theory-paper-page .quiz-focus-header {
+    gap: 8px;
+  }
+
+  .theory-paper-page .quiz-focus-header > p {
+    display: none;
+  }
+
+  .theory-paper-actions {
+    gap: 5px;
+  }
+
+  .theory-shuffle-button,
+  .theory-download-button {
+    padding: 7px 9px;
+    font-size: 0.68rem;
+  }
+
+  .theory-booklet-switch {
+    margin-top: 16px;
+  }
+
+  .theory-flip-stage {
+    padding: 16px 10px 8px;
+  }
+
   .theory-flip-perspective {
-    width: 95vw;
-    height: 82vh;
+    width: min(94vw, 590px);
+    min-width: 0;
+    filter: drop-shadow(0 14px 18px rgba(18, 25, 42, 0.14));
   }
 
   .theory-paper-sheet {
-    padding: 18px 16px;
+    padding: 7.2% 7.4% 5%;
+    font-size: clamp(0.58rem, 2.5vw, 0.76rem);
+    line-height: 1.4;
   }
 
-  .theory-paper-meta {
-    flex-direction: column;
-    gap: 6px;
+  .theory-paper-sheet--dense {
+    font-size: clamp(0.53rem, 2.2vw, 0.68rem);
+  }
+
+  .theory-paper-sheet--compact {
+    font-size: clamp(0.48rem, 1.98vw, 0.61rem);
   }
 
   .theory-question-part {
-    margin-bottom: 24px;
+    margin-bottom: 1.25em;
   }
 
   .theory-part-marks {
-    display: block;
-    margin-top: 2px;
+    min-width: 2.5em;
+    margin-left: 0.35em;
+  }
+
+  .theory-flip-arrow {
+    display: none;
+  }
+
+  .theory-mobile-page-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: min(94vw, 590px);
+    margin: 10px auto 28px;
+  }
+
+  .theory-mobile-page-controls button {
+    border: 1px solid #00003f;
+    border-radius: 999px;
+    padding: 10px 12px;
+    background: #ffffff;
+    color: #00003f;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 750;
+  }
+
+  .theory-mobile-page-controls button:last-child {
+    background: #00003f;
+    color: #ffffff;
+  }
+
+  .theory-mobile-page-controls button:disabled {
+    border-color: #c8ccd5;
+    background: #e7e9ee;
+    color: #8b919d;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theory-flipping-sheet,
+  .theory-flipping-sheet::after,
+  .theory-page-fold {
+    animation-duration: 1ms !important;
   }
 }
